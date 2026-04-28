@@ -374,6 +374,13 @@
 // ============================================================
 const MASTER_KEY = 'wmz123'; // 发布前务必填入密钥
 
+// ── GitHub Gist 授权配置 ──────────────────────────────────────────────────────
+// Gist ID（从 Gist URL 中提取）：https://gist.github.com/用户名/这里就是ID
+const GIST_ID = 'e0a346971d3e5401d7d20baec9ffe87d';
+// GitHub Personal Access Token（classic），权限只给 gist
+const GITHUB_TOKEN = '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';
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ============================================================
 //  授权状态（内部使用）
 // ============================================================
@@ -403,29 +410,53 @@ async function _getDeviceFingerprint() {
     .substring(0, 16).toUpperCase();
 }
 
-// 检查本地授权状态
+// ── GitHub Gist API ────────────────────────────────────────────────────────────
+const GIST_API = `https://api.github.com/gists/${GIST_ID}`;
+
+async function gistGet() {
+  const res = await fetch(GIST_API, {
+    headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github+json' }
+  });
+  if (!res.ok) throw new Error(`Gist GET ${res.status}`);
+  return res.json();
+}
+async function gistPatch(body) {
+  const res = await fetch(GIST_API, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(`Gist PATCH ${res.status}`);
+  return res.json();
+}
+async function getLicenses() {
+  const data = await gistGet();
+  const f = data.files && data.files['license.json'];
+  if (!f) return {};
+  try { return JSON.parse(f.content); } catch { return {}; }
+}
+async function putLicenses(licenses) {
+  await gistPatch({ files: { 'license.json': { content: JSON.stringify(licenses, null, 2) } } });
+}
+
+// ── 授权验证（云端版）──────────────────────────────────────────────────────────
 async function _checkAuth() {
-  if (!MASTER_KEY) {
-    // 未配置密钥 → 开发模式，直接通过
-    _auth.isAuthorized = true;
-    return true;
-  }
+  if (!MASTER_KEY) { _auth.isAuthorized = true; return true; }
   const stored = localStorage.getItem('wb_license_v2');
   if (!stored) return false;
   try {
     const { code } = JSON.parse(stored);
     if (!code) return false;
-    const clean = code.replace(/-/g, '').toUpperCase();
-    // 格式检查：WB + 8位字母数字
-    if (!/^WB[A-Z0-9]{8}$/.test(clean)) return false;
-    // 设备绑定检查
-    const storedFp = localStorage.getItem('wb_fp_v2');
-    if (storedFp && storedFp !== _auth.deviceId) return false;
+    // 云端验证：从 Gist 确认此码在此设备上仍然有效
+    const licenses = await getLicenses();
+    const entry = licenses[code];
+    if (!entry) return false;
+    if (entry.active === false) return false;
+    if (entry.device !== _auth.deviceId) return false;
     _auth.isAuthorized = true;
     _auth.licenseCode = code;
     return true;
-  } catch {}
-  return false;
+  } catch { return false; }
 }
 
 // 显示授权弹窗
@@ -490,7 +521,6 @@ async function _submitAuth() {
   const code = (document.getElementById('_authCodeInput').value || '').trim().toUpperCase();
   const errorEl = document.getElementById('_authError');
   if (!MASTER_KEY) {
-    // 开发模式直接通过
     _auth.isAuthorized = true;
     _auth.licenseCode = 'DEV-MODE';
     document.getElementById('_authModal').style.display = 'none';
@@ -498,33 +528,50 @@ async function _submitAuth() {
     return;
   }
   if (!code) { errorEl.textContent = '请输入授权码'; return; }
-  // 去掉所有横杠后应为 10 位：WB + 8位哈希
   const clean = code.replace(/-/g, '').toUpperCase();
-  if (clean.length !== 10 || !clean.startsWith('WB')) { errorEl.textContent = '授权码格式错误，应为 WB-XXXX-XXXX 或 WBXXXXXXXX'; return; }
-  errorEl.textContent = '验证中…';
+  if (clean.length !== 10 || !clean.startsWith('WB')) { errorEl.textContent = '授权码格式错误'; return; }
+  errorEl.textContent = '⏳ 验证中…';
 
-  // 检查设备是否被其他码占用
-  const storedFp = localStorage.getItem('wb_fp_v2');
-  if (storedFp && storedFp !== _auth.deviceId) {
-    errorEl.textContent = '⚠️ 此码已被其他设备使用，请重新获取';
-    return;
+  try {
+    // 从 Gist 读取授权记录
+    const licenses = await getLicenses();
+    const entry = licenses[code];
+
+    // 检查：码是否存在、是否有效、是否本设备已激活
+    if (!entry) {
+      errorEl.textContent = '❌ 授权码无效，请联系创建者获取';
+      return;
+    }
+    if (entry.active === false) {
+      errorEl.textContent = '❌ 此授权码已被禁用';
+      return;
+    }
+    if (entry.device && entry.device !== _auth.deviceId) {
+      errorEl.textContent = '⚠️ 此码已被其他设备使用，请重新获取';
+      return;
+    }
+
+    // 写入设备指纹到 Gist
+    licenses[code] = {
+      device: _auth.deviceId,
+      active: true,
+      activated: new Date().toISOString()
+    };
+    await putLicenses(licenses);
+
+    // 本地也存一份
+    localStorage.setItem('wb_fp_v2', _auth.deviceId);
+    localStorage.setItem('wb_license_v2', JSON.stringify({ code }));
+
+    _auth.isAuthorized = true;
+    _auth.licenseCode = code;
+    document.getElementById('_authModal').style.display = 'none';
+    _renderAuthBadge();
+
+  } catch (e) {
+    errorEl.textContent = '⚠️ 网络错误，请检查网络后重试';
+    console.error(e);
   }
-
-  // 简化验证：只检查格式，安全性由设备绑定保证
-  // 码空间：16^8 = 4.3 billion，随机猜测不可行
-  const isValid = /^[A-Z0-9]{8}$/.test(clean.substring(2));
-
-  if (!isValid) {
-    errorEl.textContent = '授权码格式错误';
-    return;
-  }
-
-  _auth.isAuthorized = true;
-  _auth.licenseCode = code;
-  localStorage.setItem('wb_fp_v2', _auth.deviceId);
-  localStorage.setItem('wb_license_v2', JSON.stringify({ code }));
-  document.getElementById('_authModal').style.display = 'none';
-  _renderAuthBadge();
 }
 
 // ============================================================
