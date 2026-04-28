@@ -260,20 +260,16 @@ async function gistPatch(body) {
 // 生成授权码（格式型：WB + 8位随机）
 async function generateCode() {
   const nameEl = document.getElementById('userName');
-  const keyEl = document.getElementById('masterKey');
   const errorEl = document.getElementById('errorMsg');
   const resultEl = document.getElementById('result');
   const btn = document.getElementById('genBtn');
 
   const name = nameEl.value.trim();
-  const key = keyEl.value.trim();
 
   errorEl.textContent = '';
   resultEl.classList.remove('show');
 
   if (!name) { errorEl.textContent = '⚠️ 请输入用户昵称'; return; }
-  if (!key)  { errorEl.textContent = '⚠️ 请输入专属密钥'; return; }
-  if (key !== MASTER_KEY) { errorEl.textContent = '⚠️ 密钥不正确'; return; }
 
   btn.disabled = true;
   btn.textContent = '⏳ 注册中…';
