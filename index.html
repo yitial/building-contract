@@ -374,8 +374,13 @@
 //  ⚠️ 发布前务必填入你的 Worker 访问地址
 // ============================================================
 
-// Cloudflare Worker 访问地址（部署后从 Workers 控制台获取）
-const WORKER_URL = 'https://decoration-contract-license.osmallseason.workers.dev';
+// 授权后端地址（优先使用腾讯云，国内访问更稳定）
+// 腾讯云 API 网关地址（部署后填入，格式如 https://service-xxx-xxx.gz.apigw.tencentcs.com/release）
+const API_URL = 'https://wangmingzhi-d2g371n9l06d22d85-1331208559.ap-shanghai.app.tcloudbase.com';
+// Cloudflare Worker 备用地址（海外用户/开发测试用）
+const CF_WORKER_URL = 'https://decoration-contract-license.osmallseason.workers.dev';
+// 自动选择：优先腾讯云，未配置则回退 Cloudflare
+const WORKER_URL = API_URL || CF_WORKER_URL;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -414,7 +419,9 @@ async function _getDeviceFingerprint() {
 async function verifyLicense(code) {
   const res = await fetch(`${WORKER_URL}/verify?code=${encodeURIComponent(code)}&deviceId=${_auth.deviceId}`);
   if (!res.ok) throw new Error(`验证请求失败 ${res.status}`);
-  return res.json();
+  let data = await res.json();
+  if (data.body && typeof data.body === 'string') { try { data = JSON.parse(data.body); } catch {} }
+  return data;
 }
 
 // 激活授权码（绑定设备）
@@ -425,7 +432,9 @@ async function activateLicense(code, deviceId) {
     body: JSON.stringify({ code, deviceId })
   });
   if (!res.ok) throw new Error(`激活请求失败 ${res.status}`);
-  return res.json();
+  let data = await res.json();
+  if (data.body && typeof data.body === 'string') { try { data = JSON.parse(data.body); } catch {} }
+  return data;
 }
 
 // ── 授权验证（云端版）──────────────────────────────────────────────────────────
