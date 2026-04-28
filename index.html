@@ -462,7 +462,7 @@ function _showAuthModal() {
           <p id="_authSubtitle" style="font-size:13px;color:#555570;">授权码由工具创建者提供，请勿随意输入</p>
         </div>
         <div style="margin-bottom:16px;">
-          <input id="_authCodeInput" type="text" placeholder="WB-XXXX-XXXX" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
+          <input id="_authCodeInput" type="text" placeholder="WBXXXX-XXXX-XXXX" maxlength="18" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
             style="width:100%;padding:14px 16px;background:#0f0f1a;border:1px solid #2a2a4a;border-radius:10px;
               color:#fff;font-size:20px;font-family:'Courier New',monospace;font-weight:700;letter-spacing:2px;
               letter-spacing:3px;text-align:center;outline:none;box-sizing:border-box;" />
@@ -483,11 +483,32 @@ function _showAuthModal() {
     // 监听输入
     const inp = document.getElementById('_authCodeInput');
     inp.addEventListener('input', () => {
-      inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 12);
+      // 提取原始纯字母数字（最多14位），去掉所有非字母数字字符
+      let raw = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      // 如果粘贴的内容已带WB前缀，先去掉再重新格式化，避免重复
+      if (raw.startsWith('WB')) raw = raw.slice(2);
+      // 限制最大12位（WB后面10位，每4位一横杠，共16位）
+      raw = raw.substring(0, 12);
+      // 自动格式化为 WBXXXX-XXXX-XXXX（16位含横杠）
+      if (raw.length > 0) {
+        let formatted = 'WB' + raw.slice(0,4) + '-' + raw.slice(4,8) + '-' + raw.slice(8);
+        inp.value = formatted.trimEnd().replace(/-$/, ''); // 去掉末尾可能多余的横杠
+      } else {
+        inp.value = '';
+      }
     });
     inp.addEventListener('paste', () => {
       setTimeout(() => {
-        inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 12);
+        // 粘贴时也走格式化逻辑，避免截断
+        let raw = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (raw.startsWith('WB')) raw = raw.slice(2);
+        raw = raw.substring(0, 12);
+        if (raw.length > 0) {
+          let formatted = 'WB' + raw.slice(0,4) + '-' + raw.slice(4,8) + '-' + raw.slice(8);
+          inp.value = formatted.trimEnd().replace(/-$/, '');
+        } else {
+          inp.value = '';
+        }
       }, 0);
     });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') _submitAuth(); });
@@ -498,9 +519,12 @@ function _showAuthModal() {
 }
 
 async function _submitAuth() {
-  const code = (document.getElementById('_authCodeInput').value || '').trim().toUpperCase();
+  const code = (document.getElementById('_authCodeInput').value || '').trim().toUpperCase().replace(/-/g, '');
   const errorEl = document.getElementById('_authError');
   if (!code) { errorEl.textContent = '请输入授权码'; return; }
+  if (!code.startsWith('WB') || code.length !== 14) {
+    errorEl.textContent = '授权码格式错误，请检查输入'; return;
+  }
   errorEl.textContent = '⏳ 验证中…';
 
   try {
