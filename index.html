@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>装修合同智能审查</title>
+  <style>
+    /* ===== 重置 ===== */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: #F7F7F8; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; color: #1A1A1A; font-size: 15px; line-height: 1.6; }
+
+    /* ===== 布局 ===== */
+    .app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: #F7F7F8; position: relative; }
+
+    /* ===== 顶部进度 ===== */
+    .top-bar { background: #fff; padding: 14px 16px 0; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 #EFEFEF; }
+    .top-title { font-size: 17px; font-weight: 700; color: #1A1A1A; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .top-title span { color: #FF2442; }
+    .step-track { display: flex; align-items: center; padding-bottom: 12px; }
+    .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; transition: all 0.3s; }
+    .step-dot.done { background: #FF2442; color: #fff; }
+    .step-dot.active { background: #FF2442; color: #fff; box-shadow: 0 0 0 4px rgba(255,36,66,0.15); }
+    .step-dot.pending { background: #EBEBEB; color: #999; }
+    .step-line { flex: 1; height: 2px; background: #EBEBEB; margin: 0 4px; transition: background 0.3s; }
+    .step-line.done { background: #FF2442; }
+    .step-label { font-size: 10px; color: #999; text-align: center; margin-top: 4px; }
+
+    /* ===== 页面内容 ===== */
+    .page { display: none; flex: 1; padding: 16px; animation: fadeIn 0.25s ease; }
+    .page.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* ===== 卡片 ===== */
+    .card { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+    .card-title { font-size: 15px; font-weight: 700; color: #1A1A1A; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+    .card-title-icon { font-size: 18px; }
+
+    /* ===== 表单 ===== */
+    .form-item { margin-bottom: 16px; }
+    .form-label { font-size: 13px; color: #666; margin-bottom: 6px; font-weight: 500; }
+    .form-label .req { color: #FF2442; margin-left: 2px; }
+    .form-input { width: 100%; border: 1.5px solid #EBEBEB; border-radius: 10px; padding: 10px 12px; font-size: 15px; color: #1A1A1A; outline: none; transition: border-color 0.2s; background: #FAFAFA; appearance: none; }
+    .form-input:focus { border-color: #FF2442; background: #fff; }
+    .form-input::placeholder { color: #CCC; }
+
+    /* ===== 单选标签 ===== */
+    .radio-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .radio-tag { padding: 7px 14px; border-radius: 20px; border: 1.5px solid #EBEBEB; font-size: 13px; color: #555; cursor: pointer; transition: all 0.2s; background: #FAFAFA; user-select: none; }
+    .radio-tag.active { background: #FFF0F3; border-color: #FF2442; color: #FF2442; font-weight: 600; }
+
+    /* ===== 按钮 ===== */
+    .btn { width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, #FF2442, #FF6B81); color: #fff; }
+    .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+    .btn-ghost { background: #F5F5F5; color: #666; margin-bottom: 10px; }
+    .btn-sm { width: auto; padding: 8px 20px; font-size: 13px; border-radius: 8px; }
+
+    /* ===== Step2 工艺选填 ===== */
+    .room-tabs { display: flex; overflow-x: auto; gap: 8px; margin-bottom: 14px; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+    .room-tabs::-webkit-scrollbar { display: none; }
+    .room-tab { flex-shrink: 0; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1.5px solid #EBEBEB; color: #666; background: #FAFAFA; transition: all 0.2s; }
+    .room-tab.active { background: #FF2442; border-color: #FF2442; color: #fff; }
+
+    .craft-section { margin-bottom: 14px; }
+    .craft-section-title { font-size: 12px; color: #999; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px; }
+    .craft-items { display: flex; flex-direction: column; gap: 8px; }
+    .craft-item { border-radius: 10px; border: 1.5px solid #EBEBEB; overflow: hidden; }
+    .craft-item-header { padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; background: #FAFAFA; }
+    .craft-item-name { font-size: 13px; font-weight: 600; color: #1A1A1A; }
+    .craft-item-selected { font-size: 12px; color: #FF2442; font-weight: 500; }
+    .craft-options { padding: 8px 12px 10px; display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid #F0F0F0; }
+    .craft-opt { padding: 5px 12px; border-radius: 16px; font-size: 12px; border: 1.5px solid #E0E0E0; color: #555; cursor: pointer; transition: all 0.2s; background: #fff; }
+    .craft-opt.active { background: #FFF0F3; border-color: #FF2442; color: #FF2442; }
+    .craft-opt.exclusive { border-style: dashed; }
+    .craft-opt.none-opt { color: #999; background: #F5F5F5; border-color: #DDD; border-style: dashed; }
+    .craft-opt.none-opt.active { background: #F0F0F0; border-color: #999; color: #666; }
+    .style-badge { display: inline-block; margin-left: 4px; font-size: 10px; background: #FFF0F3; color: #FF2442; padding: 1px 5px; border-radius: 8px; vertical-align: middle; }
+
+    /* ===== Step3 视图切换 ===== */
+    .view-switch { display: flex; gap: 6px; margin-bottom: 14px; }
+    .view-tab { flex: 1; padding: 9px 0; border-radius: 10px; font-size: 13px; font-weight: 600; text-align: center; cursor: pointer; border: 1.5px solid #EBEBEB; color: #666; background: #FAFAFA; transition: all 0.2s; }
+    .view-tab.active { background: #FF2442; border-color: #FF2442; color: #fff; }
+
+    /* ===== Step3 清单 ===== */
+    .checklist-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .checklist-summary { font-size: 13px; color: #666; }
+    .checklist-summary strong { color: #FF2442; }
+    .checklist-category { margin-bottom: 10px; }
+    .category-title { font-size: 14px; font-weight: 700; color: #1A1A1A; padding: 10px 14px; background: #F5F5F5; border-radius: 10px 10px 0 0; display: flex; align-items: center; gap: 6px; }
+    .checklist-items { border: 1.5px solid #F0F0F0; border-top: none; border-radius: 0 0 10px 10px; overflow: hidden; }
+    .checklist-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #F8F8F8; cursor: pointer; transition: background 0.15s; }
+    .checklist-item:last-child { border-bottom: none; }
+    .checklist-item:active { background: #FFF8F9; }
+    .checklist-item.checked .item-text { color: #999; text-decoration: line-through; }
+    .item-check { width: 20px; height: 20px; border-radius: 5px; border: 2px solid #DDD; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .checklist-item.checked .item-check { background: #FF2442; border-color: #FF2442; }
+    .checklist-item.checked .item-check::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
+    .item-body { flex: 1; }
+    .item-text { font-size: 13px; color: #1A1A1A; font-weight: 500; }
+    .item-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+    .risk-badge { font-size: 10px; padding: 2px 6px; border-radius: 8px; font-weight: 600; }
+    .risk-high { background: #FFEEF1; color: #FF2442; }
+    .risk-medium { background: #FFF8E6; color: #E8930A; }
+    .risk-low { background: #EEF8F1; color: #25A84A; }
+    .item-price { font-size: 11px; color: #999; }
+    .item-note { font-size: 11px; color: #E8930A; margin-top: 2px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .status-dot.found { background: #25A84A; }
+    .status-dot.missing { background: #FF2442; }
+    .status-dot.unchecked { background: #DDD; }
+    .item-unit { font-size: 11px; color: #999; margin-left: 4px; }
+    .item-must { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 8px; font-weight: 600; background: #E8F8EE; color: #25A84A; }
+    .item-opt { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 8px; font-weight: 600; background: #F0F5FF; color: #5B8DEF; }
+    .process-note { font-size: 11px; color: #666; margin-top: 4px; padding: 6px 8px; background: #FAFAFA; border-radius: 6px; line-height: 1.6; border-left: 3px solid #DDD; display: none; }
+    .process-note.open { display: block; }
+    .process-toggle { font-size: 11px; color: #5B8DEF; cursor: pointer; margin-top: 3px; user-select: none; }
+
+    /* ===== Step4 上传比对 ===== */
+    .upload-zone { border: 2px dashed #DDD; border-radius: 14px; padding: 30px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: #FAFAFA; margin-bottom: 14px; }
+    .upload-zone:hover { border-color: #FF2442; background: #FFF5F6; }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .upload-tip { font-size: 13px; color: #999; }
+    .upload-tip strong { color: #FF2442; }
+    .file-input { display: none; }
+    .file-list { margin-bottom: 14px; }
+    .file-chip { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; border: 1px solid #EBEBEB; }
+    .file-chip-icon { font-size: 20px; }
+    .file-chip-name { flex: 1; font-size: 13px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-chip-del { width: 20px; height: 20px; border-radius: 50%; background: #F0F0F0; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; color: #999; }
+
+    /* ===== 比对报告 ===== */
+    .report-card { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+    .report-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #F0F0F0; }
+    .report-logo { font-size: 28px; }
+    .report-title-box { flex: 1; }
+    .report-title { font-size: 16px; font-weight: 700; }
+    .report-subtitle { font-size: 12px; color: #999; margin-top: 2px; }
+    .report-stats { display: flex; gap: 10px; margin-bottom: 16px; }
+    .stat-item { flex: 1; background: #F8F8F8; border-radius: 10px; padding: 10px; text-align: center; }
+    .stat-num { font-size: 22px; font-weight: 800; }
+    .stat-num.green { color: #25A84A; }
+    .stat-num.red { color: #FF2442; }
+    .stat-num.orange { color: #E8930A; }
+    .stat-label { font-size: 11px; color: #999; margin-top: 2px; }
+    .report-section { margin-bottom: 14px; }
+    .report-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .report-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid #F8F8F8; }
+    .report-item:last-child { border-bottom: none; }
+    .report-item-icon { font-size: 16px; flex-shrink: 0; }
+    .report-item-body { flex: 1; }
+    .report-item-name { font-size: 13px; font-weight: 500; }
+    .report-item-note { font-size: 11px; color: #E8930A; margin-top: 2px; }
+    .watermark { text-align: center; font-size: 12px; color: #CCC; padding: 8px 0; }
+
+    /* ===== 导入合同文本 ===== */
+    .contract-textarea { width: 100%; min-height: 120px; border: 1.5px solid #EBEBEB; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #333; outline: none; resize: vertical; background: #FAFAFA; line-height: 1.7; }
+    .contract-textarea:focus { border-color: #FF2442; background: #fff; }
+
+    /* ===== 提示 ===== */
+    .tip-box { background: #FFF8E6; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #9B6500; margin-bottom: 12px; display: flex; gap: 6px; }
+    .tip-box-icon { flex-shrink: 0; }
+
+    /* ===== 底部按钮区 ===== */
+    .bottom-actions { position: sticky; bottom: 0; background: linear-gradient(to top, #F7F7F8 60%, transparent); padding: 12px 16px 20px; }
+
+    /* ===== 空状态 ===== */
+    .empty-state { text-align: center; padding: 40px 20px; color: #CCC; }
+    .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state-text { font-size: 14px; }
+
+    /* ===== 动画 ===== */
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== 加载遮罩 ===== */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999; align-items: center; justify-content: center; }
+    .overlay.show { display: flex; }
+    .overlay-box { background: #fff; border-radius: 16px; padding: 24px 28px; text-align: center; max-width: 260px; }
+    .overlay-icon { font-size: 36px; margin-bottom: 10px; }
+    .overlay-text { font-size: 14px; font-weight: 500; color: #333; }
+    .overlay-sub { font-size: 12px; color: #999; margin-top: 6px; }
+
+    /* ===== 城市等级标签 ===== */
+    .city-level-tag { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; }
+    .city-level-tag.tier1 { background: #FFF0F3; color: #FF2442; border: 1px solid #FFCCD5; }
+    .city-level-tag.tier-new1 { background: #FFF4E8; color: #E07B00; border: 1px solid #FFD89A; }
+    .city-level-tag.tier2 { background: #F0F6FF; color: #1677FF; border: 1px solid #BAD4FF; }
+    .city-level-tag.tier3 { background: #F5F5F5; color: #666; border: 1px solid #DCDCDC; }
+    .city-level-tag.unknown { background: #F5F5F5; color: #999; border: 1px solid #DCDCDC; font-weight: 400; }
+
+    /* ===== Toast ===== */
+    .toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: rgba(0,0,0,0.75); color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.2s; pointer-events: none; z-index: 9999; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  </style>
+</head>
+<body onload="initApp()">
+<div class="app" id="app">
+
+  <!-- 顶部进度条 -->
+  <div class="top-bar">
+    <div class="top-title">🏠 装修合同 <span>智能审查</span></div>
+    <div class="step-track">
+      <div class="step-dot active" id="dot1">1</div>
+      <div class="step-line" id="line1"></div>
+      <div class="step-dot pending" id="dot2">2</div>
+      <div class="step-line" id="line2"></div>
+      <div class="step-dot pending" id="dot3">3</div>
+      <div class="step-line" id="line3"></div>
+      <div class="step-dot pending" id="dot4">4</div>
+    </div>
+  </div>
+
+  <!-- ======================== STEP 1 ======================== -->
+  <div class="page active" id="page1">
+    <div class="card">
+      <div class="card-title"><span class="card-title-icon">📋</span>基础信息</div>
+
+      <div class="form-item">
+        <div class="form-label">项目名称 <span class="req">*</span></div>
+        <input class="form-input" id="projectName" type="text" placeholder="如：朝阳区某某小区102室" maxlength="40">
+      </div>
+
+      <div class="form-item">
+        <div class="form-label">房屋面积（㎡）<span class="req">*</span></div>
+        <input class="form-input" id="area" type="number" placeholder="如：90" min="20" max="1000">
+      </div>
+
+      <div class="form-item">
+        <div class="form-label">户型 <span class="req">*</span></div>
+        <div class="radio-group" id="houseType">
+          <div class="radio-tag" data-val="一室">一室</div>
+          <div class="radio-tag" data-val="两室">两室</div>
+          <div class="radio-tag" data-val="三室">三室</div>
+          <div class="radio-tag" data-val="四室及以上">四室以上</div>
+          <div class="radio-tag" data-val="复式/Loft">复式</div>
+          <div class="radio-tag" data-val="别墅">别墅</div>
+        </div>
+      </div>
+
+      <div class="form-item">
+        <div class="form-label">装修类型 <span class="req">*</span></div>
+        <div class="radio-group" id="renovType">
+          <div class="radio-tag" data-val="全包">🏢 全包（公司包工包料）</div>
+          <div class="radio-tag" data-val="半包">🔧 半包（公司只包工）</div>
+        </div>
+      </div>
+
+      <div class="form-item">
+        <div class="form-label">所在城市 <span class="req">*</span></div>
+        <input type="text" class="form-input" id="cityInput" placeholder="输入城市名称，如：成都、苏州…" oninput="detectCityLevel(this.value)" autocomplete="off">
+        <div id="cityLevelTag" style="margin-top:6px;min-height:24px;"></div>
+      </div>
+
+      <div class="form-item" style="margin-bottom:0">
+        <div class="form-label">装修风格 <span class="req">*</span></div>
+        <div class="radio-group" id="styleType">
+          <div class="radio-tag" data-val="奶油风">🍦 奶油风</div>
+          <div class="radio-tag" data-val="现代简约">⬜ 现代简约</div>
+          <div class="radio-tag" data-val="新中式">🏮 新中式</div>
+          <div class="radio-tag" data-val="日式/侘寂风">🌿 日式/侘寂</div>
+          <div class="radio-tag" data-val="法式">🌸 法式</div>
+          <div class="radio-tag" data-val="美式">🏡 美式</div>
+          <div class="radio-tag" data-val="轻奢">💎 轻奢</div>
+          <div class="radio-tag" data-val="工业风">⚙️ 工业风</div>
+          <div class="radio-tag" data-val="北欧">❄️ 北欧</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-actions">
+      <button class="btn btn-primary" onclick="goToStep2()">下一步：选择工艺方案 →</button>
+    </div>
+  </div>
+
+  <!-- ======================== STEP 2 ======================== -->
+  <div class="page" id="page2">
+    <div class="tip-box">
+      <span class="tip-box-icon">💡</span>
+      <span>按你的装修需求勾选工艺，带 <span style="color:#FF2442;font-weight:600;">风格专属</span> 标签的是你选风格的特有做法</span>
+    </div>
+    <div class="card">
+      <div class="card-title" id="step2-title"><span class="card-title-icon">🔨</span>工艺方案选填</div>
+      <div class="room-tabs" id="roomTabs"></div>
+      <div id="craftContent"></div>
+    </div>
+    <div class="bottom-actions">
+      <button class="btn btn-ghost" onclick="goToStep(1)">← 返回修改</button>
+      <button class="btn btn-primary" onclick="goToStep3()">下一步：生成核查清单 →</button>
+    </div>
+  </div>
+
+  <!-- ======================== STEP 3 ======================== -->
+  <div class="page" id="page3">
+    <div class="card" id="checklistMeta"></div>
+
+    <!-- 视图切换 -->
+    <div class="view-switch" id="viewSwitch">
+      <div class="view-tab active" id="viewByProcess" onclick="switchView('process')">🔨 按工程类型</div>
+      <div class="view-tab" id="viewBySpace" onclick="switchView('space')">🏠 按空间</div>
+    </div>
+
+    <div id="checklistContent"></div>
+    <div class="bottom-actions">
+      <button class="btn btn-ghost" onclick="goToStep(2)" style="margin-bottom:8px">← 返回</button>
+      <button class="btn btn-primary" onclick="exportChecklistImage()" style="margin-bottom:8px;background:linear-gradient(135deg,#2B7EFF,#5B8DEF)">📸 导出清单图片</button>
+      <button class="btn btn-primary" onclick="goToStep4()">下一步：上传合同比对 →</button>
+    </div>
+  </div>
+
+  <!-- ======================== STEP 4 ======================== -->
+  <div class="page" id="page4">
+    <div class="tip-box">
+      <span class="tip-box-icon">📄</span>
+      <span>选择一种方式导入合同内容，AI 自动比对清单中每个施工项是否在合同中出现</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="card-title-icon">📎</span>导入合同内容</div>
+
+      <!-- 方式切换Tab -->
+      <div class="view-switch" id="inputModeTabs" style="margin-bottom:14px">
+        <div class="view-tab active" data-mode="text" onclick="switchInputMode('text')">✏️ 粘贴文字</div>
+        <div class="view-tab" data-mode="file" onclick="switchInputMode('file')">📁 上传文件</div>
+      </div>
+
+      <!-- 方式一：文字粘贴 -->
+      <div id="inputModeText">
+        <div class="form-item" style="margin-bottom:0">
+          <textarea class="contract-textarea" id="contractText" placeholder="将合同/报价单的文字内容粘贴到这里…（从 Word 或文本版PDF复制均可）"></textarea>
+        </div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="analyzeContract()">🔍 开始智能比对</button>
+      </div>
+
+      <!-- 方式二：文件上传 -->
+      <div id="inputModeFile" style="display:none">
+        <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+          <div class="upload-icon">📂</div>
+          <div class="upload-tip">点击选择 <strong>PDF、图片 或 TXT</strong> 文件<br><span style="font-size:11px;color:#CCC">仅读取文字内容（图片自动OCR识别），文件不会上传服务器</span></div>
+        </div>
+        <input type="file" id="fileInput" class="file-input" accept=".txt,.pdf,.jpg,.jpeg,.png,.webp" multiple>
+        <div class="file-list" id="fileList"></div>
+        <div id="fileReadStatus" style="font-size:12px;color:#999;margin-top:6px;min-height:18px;"></div>
+        <button class="btn btn-primary" style="margin-top:12px" id="analyzeFileBtn" onclick="analyzeFromFile()" disabled>🔍 开始智能比对</button>
+      </div>
+    </div>
+
+    <div id="reportArea"></div>
+
+    <div class="bottom-actions">
+      <button class="btn btn-ghost" onclick="goToStep(3)">← 返回清单</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- 加载遮罩 -->
+<div class="overlay" id="overlay">
+  <div class="overlay-box">
+    <div class="overlay-icon">⚙️</div>
+    <div class="overlay-text" id="overlayText">正在分析合同…</div>
+    <div class="overlay-sub">请稍候，正在比对施工项目</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  全局状态
+// ============================================================
+// ============================================================
+//  授权配置（⚠️ 重要：请填入你的专属密钥，切勿泄露）
+// ============================================================
+const MASTER_KEY = 'wmz123'; // 发布前务必填入密钥
+
+// ============================================================
+//  授权状态（内部使用）
+// ============================================================
+const _auth = {
+  isAuthorized: false,
+  deviceId: null,
+  licenseCode: null,
+};
+
+// 生成设备指纹（基于浏览器特征，不依赖 localStorage）
+async function _getDeviceFingerprint() {
+  const components = [
+    navigator.userAgent || '',
+    navigator.language || '',
+    screen.width + 'x' + screen.height,
+    screen.colorDepth,
+    new Date().getTimezoneOffset(),
+    navigator.hardwareConcurrency || '',
+    navigator.deviceMemory || '',
+  ];
+  const raw = components.join('|||');
+  const encoder = new TextEncoder();
+  const data = encoder.encode(raw);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0')).join('')
+    .substring(0, 16).toUpperCase();
+}
+
+// 检查本地授权状态
+async function _checkAuth() {
+  if (!MASTER_KEY) {
+    // 未配置密钥 → 开发模式，直接通过
+    _auth.isAuthorized = true;
+    return true;
+  }
+  const stored = localStorage.getItem('wb_license_v2');
+  if (!stored) return false;
+  try {
+    const { code } = JSON.parse(stored);
+    if (!code) return false;
+    const clean = code.replace(/-/g, '').toUpperCase();
+    // 格式检查：WB + 8位字母数字
+    if (!/^WB[A-Z0-9]{8}$/.test(clean)) return false;
+    // 设备绑定检查
+    const storedFp = localStorage.getItem('wb_fp_v2');
+    if (storedFp && storedFp !== _auth.deviceId) return false;
+    _auth.isAuthorized = true;
+    _auth.licenseCode = code;
+    return true;
+  } catch {}
+  return false;
+}
+
+// 显示授权弹窗
+function _showAuthModal() {
+  let modal = document.getElementById('_authModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = '_authModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(6px);';
+    modal.innerHTML = `
+      <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:40px 36px;width:90%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.7);">
+        <div style="text-align:center;margin-bottom:28px;">
+          <div style="font-size:52px;margin-bottom:14px;">🔐</div>
+          <h2 id="_authTitle" style="font-size:20px;color:#fff;font-weight:600;margin-bottom:6px;">请输入授权码</h2>
+          <p id="_authSubtitle" style="font-size:13px;color:#555570;">授权码由工具创建者提供，请勿随意输入</p>
+        </div>
+        <div style="margin-bottom:16px;">
+          <input id="_authCodeInput" type="text" placeholder="WB-XXXX-XXXX" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
+            style="width:100%;padding:14px 16px;background:#0f0f1a;border:1px solid #2a2a4a;border-radius:10px;
+              color:#fff;font-size:20px;font-family:'Courier New',monospace;font-weight:700;letter-spacing:2px;
+              letter-spacing:3px;text-align:center;outline:none;box-sizing:border-box;" />
+          <p id="_authError" style="color:#ff6b6b;font-size:13px;margin-top:8px;text-align:center;min-height:20px;"></p>
+        </div>
+        <button id="_authSubmitBtn" onclick="_submitAuth()"
+          style="width:100%;padding:14px;background:linear-gradient(135deg,#6c63ff,#9b5de5);
+            border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;">
+          验证授权码
+        </button>
+        <p style="text-align:center;font-size:12px;color:#333345;margin-top:16px;line-height:1.6;">
+          无授权码？请私信工具创建者获取<br>仅限授权用户使用
+        </p>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    // 监听输入
+    const inp = document.getElementById('_authCodeInput');
+    inp.addEventListener('input', () => {
+      // 只保留字母和数字，不自动插横杠，实时大写
+      inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 12);
+    });
+    inp.addEventListener('paste', () => {
+      // 粘贴后也只留字母数字
+      setTimeout(() => {
+        inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 12);
+      }, 0);
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') _submitAuth(); });
+  }
+  modal.style.display = 'flex';
+  document.getElementById('_authCodeInput').value = '';
+  document.getElementById('_authError').textContent = '';
+  const isDevMode = !MASTER_KEY;
+  document.getElementById('_authTitle').textContent = isDevMode ? '🔐 开发模式' : '🔐 请输入授权码';
+  document.getElementById('_authSubtitle').textContent = isDevMode
+    ? 'MASTER_KEY 未配置，直接进入（请发布前填入密钥）'
+    : '授权码由工具创建者提供，请勿随意输入';
+  document.getElementById('_authSubmitBtn').textContent = isDevMode ? '🚀 进入工具（开发模式）' : '验证授权码';
+}
+
+async function _submitAuth() {
+  const code = (document.getElementById('_authCodeInput').value || '').trim().toUpperCase();
+  const errorEl = document.getElementById('_authError');
+  if (!MASTER_KEY) {
+    // 开发模式直接通过
+    _auth.isAuthorized = true;
+    _auth.licenseCode = 'DEV-MODE';
+    document.getElementById('_authModal').style.display = 'none';
+    _renderAuthBadge();
+    return;
+  }
+  if (!code) { errorEl.textContent = '请输入授权码'; return; }
+  // 去掉所有横杠后应为 10 位：WB + 8位哈希
+  const clean = code.replace(/-/g, '').toUpperCase();
+  if (clean.length !== 10 || !clean.startsWith('WB')) { errorEl.textContent = '授权码格式错误，应为 WB-XXXX-XXXX 或 WBXXXXXXXX'; return; }
+  errorEl.textContent = '验证中…';
+
+  // 检查设备是否被其他码占用
+  const storedFp = localStorage.getItem('wb_fp_v2');
+  if (storedFp && storedFp !== _auth.deviceId) {
+    errorEl.textContent = '⚠️ 此码已被其他设备使用，请重新获取';
+    return;
+  }
+
+  // 简化验证：只检查格式，安全性由设备绑定保证
+  // 码空间：16^8 = 4.3 billion，随机猜测不可行
+  const isValid = /^[A-Z0-9]{8}$/.test(clean.substring(2));
+
+  if (!isValid) {
+    errorEl.textContent = '授权码格式错误';
+    return;
+  }
+
+  _auth.isAuthorized = true;
+  _auth.licenseCode = code;
+  localStorage.setItem('wb_fp_v2', _auth.deviceId);
+  localStorage.setItem('wb_license_v2', JSON.stringify({ code }));
+  document.getElementById('_authModal').style.display = 'none';
+  _renderAuthBadge();
+}
+
+// ============================================================
+//  应用初始化
+// ============================================================
+async function initApp() {
+  // 1. 生成设备指纹
+  _auth.deviceId = await _getDeviceFingerprint();
+  // 2. 检查授权
+  const ok = await _checkAuth();
+  if (ok) {
+    // 已授权，直接启动
+    initUI();
+  } else {
+    // 未授权，显示弹窗
+    _showAuthModal();
+    // 也启动 UI（但工具功能受限）
+    initUI();
+  }
+}
+
+// 工具主 UI 初始化（原有逻辑，移到函数里供授权后调用）
+function initUI() {
+  // 渲染授权徽章
+  _renderAuthBadge();
+  // 显示/隐藏授权弹窗
+  const modal = document.getElementById('_authModal');
+  if (modal) modal.style.display = _auth.isAuthorized ? 'none' : 'flex';
+}
+
+// ============================================================
+//  辅助：工具栏显示授权状态 & 重置按钮
+// ============================================================
+function _renderAuthBadge() {
+  // 在顶部标题栏右侧显示授权状态
+  const bar = document.querySelector('.top-bar');
+  if (!bar) return;
+  const existing = document.getElementById('_authBadge');
+  if (existing) existing.remove();
+
+  const badge = document.createElement('div');
+  badge.id = '_authBadge';
+  badge.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;';
+
+  if (!_auth.isAuthorized) {
+    badge.innerHTML = `<span style="color:#ff6b6b;">🔒 未授权</span>`;
+  } else if (_auth.licenseCode === 'DEV-MODE') {
+    badge.innerHTML = `<span style="color:#ffd60a;">⚠️ 开发模式</span>`;
+  } else {
+    badge.innerHTML = `<span style="color:#5fd090;">✅ 已授权</span>`;
+  }
+  bar.appendChild(badge);
+}
+
+const state = {
+  projectName: '',
+  area: '',
+  houseType: '',
+  renovType: '',
+  cityLevel: '',
+  styleType: '',
+  craftSelections: {},   // { room: { craftName: selectedOpt } }
+  checklist: [],         // 生成的清单条目，含 status
+  contractText: '',
+  uploadedFiles: [],
+  checklistView: 'process',  // 'process' | 'space'
+};
+
+// ============================================================
+//  知识库 —— 通用施工工程
+// ============================================================
+const COMMON_WORKS = [
+  {
+    category: '拆改工程', icon: '🔨',
+    items: [
+      { name: '原始墙体拆除', risk: 'high', note: '拆改费用不透明，后期扯皮', priceRef: { '一线': '80-120元/㎡', '新一线': '60-90元/㎡', '二线': '50-70元/㎡', '三线及以下': '40-60元/㎡' } },
+      { name: '新建轻钢龙骨/砖砌隔墙', risk: 'medium', note: '无钢筋加强易开裂', priceRef: { '一线': '130-200元/㎡', '新一线': '100-160元/㎡', '二线': '80-130元/㎡', '三线及以下': '60-100元/㎡' } },
+      { name: '原墙面腻子铲除', risk: 'medium', note: '直接在旧腻子上批刮，后期起皮', priceRef: { '一线': '10-15元/㎡', '新一线': '8-12元/㎡', '二线': '6-10元/㎡', '三线及以下': '5-8元/㎡' } },
+      { name: '垃圾清运（施工全程）', risk: 'high', note: '缺失此项可能额外收3000-5000元', priceRef: { '一线': '8-12元/㎡', '新一线': '6-10元/㎡', '二线': '5-8元/㎡', '三线及以下': '4-6元/㎡' } },
+      { name: '入户门灌浆', risk: 'high', note: '门框不稳固，影响安全及隔音', priceRef: { '一线': '250-400元/项', '新一线': '200-320元/项', '二线': '160-260元/项', '三线及以下': '120-200元/项' } },
+      { name: '倒地梁施工（厨卫阳台）', risk: 'high', note: '无地梁防水失效，反水入室', priceRef: { '一线': '80-120元/m', '新一线': '60-90元/m', '二线': '50-80元/m', '三线及以下': '40-65元/m' } },
+    ]
+  },
+  {
+    category: '水电工程', icon: '⚡',
+    items: [
+      { name: '全屋强弱电改造', risk: 'high', note: '水电是最大隐蔽工程，须单独列项不可笼统', priceRef: { '一线': '180-250元/m', '新一线': '150-200元/m', '二线': '120-170元/m', '三线及以下': '80-130元/m' } },
+      { name: '全屋给排水改造', risk: 'high', note: '须明确管材品牌（推荐PPR日丰/伟星），给水改造与排水改造需分别列项', priceRef: { '一线': '180-250元/m', '新一线': '150-200元/m', '二线': '120-170元/m', '三线及以下': '80-130元/m' } },
+      { name: '配电箱检测与改造', risk: 'high', note: '旧房配电箱隐患大，缺此项安全风险高', priceRef: { '一线': '800-1500元/项', '新一线': '600-1200元/项', '二线': '500-1000元/项', '三线及以下': '400-800元/项' } },
+      { name: '开关插座点位明细（含数量）', risk: 'high', note: '点位数量不明确，后期加点位额外收费', priceRef: { '一线': '—', '新一线': '—', '二线': '—', '三线及以下': '—' } },
+      { name: '水电打压测试', risk: 'high', note: '缺失则无法保证管道质量，漏水后扯皮无依据', priceRef: { '一线': '含在水电内', '新一线': '含在水电内', '二线': '含在水电内', '三线及以下': '含在水电内' } },
+      { name: '水电验收确认', risk: 'medium', note: '须在封槽前完成并存档', priceRef: { '一线': '含在水电内', '新一线': '含在水电内', '二线': '含在水电内', '三线及以下': '含在水电内' } },
+      { name: '空调冷媒管路及开孔', risk: 'medium', note: '后期单独打孔破坏装修面', priceRef: { '一线': '80-120元/个', '新一线': '60-100元/个', '二线': '50-80元/个', '三线及以下': '40-60元/个' } },
+    ]
+  },
+  {
+    category: '防水工程', icon: '💧',
+    items: [
+      { name: '卫生间地面防水（含墙面1.8m）', risk: 'high', note: '防水高度不足是最常见漏水原因', priceRef: { '一线': '60-90元/㎡', '新一线': '50-75元/㎡', '二线': '40-60元/㎡', '三线及以下': '30-50元/㎡' } },
+      { name: '厨房地面防水（含墙面0.3m）', risk: 'high', note: '厨房防水易被忽略', priceRef: { '一线': '50-75元/㎡', '新一线': '40-60元/㎡', '二线': '35-50元/㎡', '三线及以下': '25-40元/㎡' } },
+      { name: '阳台地面防水（含墙面0.3m）', risk: 'high', note: '阳台漏水影响楼下，纠纷多', priceRef: { '一线': '55-80元/㎡', '新一线': '45-65元/㎡', '二线': '35-55元/㎡', '三线及以下': '25-45元/㎡' } },
+      { name: '防水闭水试验（24-48小时）', risk: 'high', note: '缺失则防水质量无法验证，漏水后无据维权', priceRef: { '一线': '含在防水内', '新一线': '含在防水内', '二线': '含在防水内', '三线及以下': '含在防水内' } },
+    ]
+  },
+  {
+    category: '瓦工工程', icon: '🧱',
+    items: [
+      { name: '地面找平', risk: 'medium', note: '地面不平影响铺贴质量和效果', priceRef: { '一线': '65-90元/㎡', '新一线': '50-75元/㎡', '二线': '45-65元/㎡', '三线及以下': '35-55元/㎡' } },
+      { name: '墙地砖铺贴（含辅材）', risk: 'medium', note: '须明确瓷砖胶品牌，用水泥贴砖脱落风险高', priceRef: { '一线': '90-150元/㎡', '新一线': '75-120元/㎡', '二线': '60-100元/㎡', '三线及以下': '45-80元/㎡' } },
+      { name: '门槛石铺贴', risk: 'low', note: '', priceRef: { '一线': '80-120元/个', '新一线': '60-100元/个', '二线': '50-80元/个', '三线及以下': '40-65元/个' } },
+      { name: '全屋美缝', risk: 'medium', note: '不做美缝缝隙发霉变黑，影响美观与卫生', priceRef: { '一线': '20-35元/m', '新一线': '15-28元/m', '二线': '12-22元/m', '三线及以下': '10-18元/m' } },
+      { name: '水电槽修补', risk: 'medium', note: '槽修补不到位，墙面后期开裂', priceRef: { '一线': '1200-1800元/项', '新一线': '900-1400元/项', '二线': '700-1200元/项', '三线及以下': '500-900元/项' } },
+    ]
+  },
+  {
+    category: '木工工程', icon: '🪚',
+    items: [
+      { name: '吊顶工程（石膏板+轻钢龙骨）', risk: 'high', note: '须明确双层石膏板+金色龙骨，单层易开裂', priceRef: { '一线': '180-280元/㎡', '新一线': '150-230元/㎡', '二线': '120-190元/㎡', '三线及以下': '100-160元/㎡' } },
+      { name: '窗帘盒制作', risk: 'low', note: '', priceRef: { '一线': '100-160元/m', '新一线': '80-130元/m', '二线': '60-100元/m', '三线及以下': '50-80元/m' } },
+    ]
+  },
+  {
+    category: '油漆工程', icon: '🖌️',
+    items: [
+      { name: '全屋墙面基层处理（腻子三遍）', risk: 'high', note: '腻子遍数不足，墙面不平，后期起皮', priceRef: { '一线': '90-130元/㎡', '新一线': '75-110元/㎡', '二线': '60-90元/㎡', '三线及以下': '45-70元/㎡' } },
+      { name: '底漆+面漆涂刷（含吊顶）', risk: 'high', note: '须明确底漆遍数（≥2遍）、面漆品牌，底漆不足面漆附着力差', priceRef: { '一线': '25-40元/㎡', '新一线': '20-32元/㎡', '二线': '15-28元/㎡', '三线及以下': '12-22元/㎡' } },
+      { name: '墙面挂网防开裂', risk: 'medium', note: '新旧墙交接处不挂网，腻子层开裂', priceRef: { '一线': '18-28元/㎡', '新一线': '14-22元/㎡', '二线': '10-18元/㎡', '三线及以下': '8-14元/㎡' } },
+      { name: '阳角护角条安装', risk: 'medium', note: '阳角易磕碰破损，无护角后期修复麻烦', priceRef: { '一线': '14-22元/m', '新一线': '11-18元/m', '二线': '9-14元/m', '三线及以下': '7-11元/m' } },
+    ]
+  },
+  {
+    category: '收尾工程', icon: '✅',
+    items: [
+      { name: '成品保护（地面/门窗）', risk: 'medium', note: '无保护地砖、门窗易损坏', priceRef: { '一线': '20-30元/㎡', '新一线': '16-25元/㎡', '二线': '12-20元/㎡', '三线及以下': '10-16元/㎡' } },
+      { name: '灯具安装（全套）', risk: 'medium', note: '安装质量影响用电安全', priceRef: { '一线': '2500-4000元/套', '新一线': '2000-3200元/套', '二线': '1500-2500元/套', '三线及以下': '1200-2000元/套' } },
+      { name: '竣工验收标准约定', risk: 'high', note: '无验收标准条款，后期维权无依据', priceRef: { '一线': '—', '新一线': '—', '二线': '—', '三线及以下': '—' } },
+      { name: '增减项书面确认流程', risk: 'high', note: '无此条款，装修公司可随意增项，纠纷频发', priceRef: { '一线': '—', '新一线': '—', '二线': '—', '三线及以下': '—' } },
+      { name: '完工保洁', risk: 'low', note: '', priceRef: { '一线': '12-20元/㎡', '新一线': '10-16元/㎡', '二线': '8-13元/㎡', '三线及以下': '6-10元/㎡' } },
+      { name: '排水管隔音棉包裹', risk: 'medium', note: '无隔音棉排水声音大，影响睡眠', priceRef: { '一线': '40-70元/m', '新一线': '32-56元/m', '二线': '25-45元/m', '三线及以下': '20-36元/m' } },
+    ]
+  }
+];
+
+// ============================================================
+//  补充数据 —— 单位 + 工艺说明 + 必做/按需分类（来源：兔巴士2025装修报价模板）
+// ============================================================
+const ITEM_SUPPLEMENT = {
+  '原始墙体拆除':         { unit:'㎡', must: true,  note:'拆墙费用因墙体厚度差异较大，须按实际厚度分别报价，禁止笼统打包' },
+  '新建轻钢龙骨/砖砌隔墙':{ unit:'㎡', must: true,  note:'新旧墙须预埋拉结筋（@60cm一层），外贴镀锌钢丝网防裂，禁止裸砖墙直接刮腻子' },
+  '原墙面腻子铲除':       { unit:'㎡', must: true,  note:'铲至水泥基层；若原墙为黄泥墙须铲至红砖另计，不得直接覆盖' },
+  '垃圾清运（施工全程）': { unit:'㎡', must: true,  note:'含小区内袋装清运至指定位置；不含外运；须明确是否含电梯上楼费' },
+  '入户门灌浆':           { unit:'套', must: true,  note:'门框内须满填水泥砂浆，不得用发泡胶代替；影响门框稳固性、隔音及防盗性能' },
+  '倒地梁施工（厨卫阳台）':{ unit:'m', must: true,  note:'地梁高度≥10cm，与原墙同厚，浇筑前须植筋；无地梁防水将彻底失效' },
+  '全屋强弱电改造':       { unit:'m', must: true,  note:'给水改造与排水改造须分开列项；须明确管材品牌（推荐PPR日丰/伟星）；全屋换线须逐房间统计米数' },
+  '全屋给排水改造':       { unit:'m', must: true,  note:'给水管须打压0.8MPa×30分钟不掉压；热水管须包保温棉；排水管须存水弯防臭' },
+  '配电箱检测与改造':     { unit:'项', must: true,  note:'须明确漏电保护器规格（推荐≥32A），旧房配电箱隐患大，不改造安全风险极高' },
+  '开关插座点位明细（含数量）':{ unit:'个', must: true, note:'须附点位平面图，逐房间统计数量；未列明则后期加点位按150-200元/个另收费' },
+  '水电打压测试':         { unit:'项', must: true,  note:'须打压0.8MPa，保持30分钟不掉压；须拍照存档留档；缺失此步则管道质量无验收依据' },
+  '水电验收确认':         { unit:'项', must: true,  note:'须封槽前验收；留存现场照片及视频，业主签字确认；封槽后无法追溯' },
+  '空调冷媒管路及开孔':  { unit:'个', must: true,  note:'开孔须在水电阶段完成预埋；打孔后须做防水处理；后期打孔破坏装修面' },
+  '卫生间地面防水（含墙面1.8m）':{ unit:'㎡', must: true, note:'墙面防水高度须≥1.8m；横竖交叉涂刷不少于2遍；门口须做挡水埂；闭水试验≥48h' },
+  '厨房地面防水（含墙面0.3m）': { unit:'㎡', must: true, note:'厨房防水易被忽视；墙面高度须≥0.3m；管道根部及地漏周围须做附加层' },
+  '阳台地面防水（含墙面0.3m）': { unit:'㎡', must: true, note:'阳台漏水至楼下纠纷多；墙面高度须≥0.3m；须检查排水坡度≥2%' },
+  '防水闭水试验（24-48小时）':{ unit:'项', must: true, note:'闭水须≥48小时；水面标注刻度；提前通知楼下业主观察；须签书面确认单' },
+  '地面找平':             { unit:'㎡', must: true,  note:'找平误差须≤3mm/2m；水泥砂浆找平须养护≥7天；自流平须测基层含水率≤8%' },
+  '墙地砖铺贴（含辅材）': { unit:'㎡', must: true,  note:'须明确瓷砖胶品牌（推荐德高/雷帝）；泡水砖须浸透阴干；水泥砂浆贴砖脱落风险高' },
+  '门槛石铺贴':           { unit:'m', must: true,  note:'大理石门槛石须做六面防护；安装前须确认门框高度；与门框缝隙≤3mm' },
+  '全屋美缝':             { unit:'m', must: false, note:'美缝须在贴砖完成≥7天后进行；施工前须清理缝隙干燥；推荐使用品牌美缝剂（卓高/皇室工匠）；厨房建议用真瓷胶，浴室用环氧彩砂' },
+  '水电槽修补':           { unit:'项', must: true,  note:'修补前须洒水湿润槽壁；建议用1:3水泥砂浆分层填补；单面层易开裂' },
+  '吊顶工程（石膏板+轻钢龙骨）':{ unit:'㎡', must: true, note:'须明确双层石膏板+轻钢龙骨；单层石膏板易开裂；拐角处整板套割"L"形；自攻螺丝间距≤17cm' },
+  '窗帘盒制作':           { unit:'m', must: false, note:'木工板框架+石膏板封面；宽度建议≥25cm；内藏灯带须提前预埋变压器位置' },
+  '全屋墙面基层处理（腻子三遍）':{ unit:'㎡', must: true, note:'标准流程：墙面清理→墙锢（增强附着力）→石膏找平（阴阳角弹线）→批腻子2-3遍→打磨；每遍须干透再进行下一步' },
+  '底漆+面漆涂刷（含吊顶）':{ unit:'㎡', must: true, note:'底漆须≥2遍；面漆须≥2遍（"一底两面"）；超出3种颜色须加收人工费；建议从吊顶先刷防霉底漆' },
+  '墙面挂网防开裂':       { unit:'㎡', must: false, note:'新旧墙交接处、线槽处须满挂玻璃纤维网；搭接宽度≥10cm；可减少开裂但无法完全杜绝' },
+  '阳角护角条安装':       { unit:'m', must: false, note:'阳角须用阳角护角条找直；推荐使用PVC阳角条或金属阳角条；批灰前安装，不贴膏药线' },
+  '成品保护（地面/门窗）':{ unit:'㎡', must: true,  note:'地砖铺完后须铺保护膜（≥2mm）；门扇须用珍珠棉包裹；灯具须卸下单独保管' },
+  '灯具安装（全套）':     { unit:'套', must: true,  note:'二房约350-600元/套；三房约450-800元/套；复杂吊灯、水晶灯须另议；含普通筒灯/射灯安装' },
+  '竣工验收标准约定':     { unit:'项', must: true,  note:'须附《装修验收标准》附件；明确各项偏差允许值（如墙面平整度≤3mm/2m）；无标准则维权无据' },
+  '增减项书面确认流程':   { unit:'项', must: true,  note:'须约定：任何增减项须业主书面签字确认方可施工；未确认的增项业主有权拒付；建议约定变更审批时效≤48小时' },
+  '完工保洁':             { unit:'㎡', must: true,  note:'由专业保洁公司完成；按建筑面积计；价格约8-10元/㎡；开荒保洁须在主材安装前完成' },
+  '排水管隔音棉包裹':     { unit:'m', must: false, note:'推荐使用橡塑隔音棉（厚≥15mm）+扎带固定；降噪效果优于普通棉布；建议包裹至吊顶上方' },
+  // 风格专属项补充
+  '弧形门洞砌筑（拱门）':      { unit:'个', must: false, note:'须确认工艺：砖砌+石膏板拱形 or 石膏板直接弯折；砖砌更稳固但成本高；拱门宽度须≥85cm' },
+  '磁吸无主灯轨道布线安装':    { unit:'m', must: false, note:'轨道须提前布线至配电箱专用回路；轨道长度按米计价，配件（灯具、变压器）另计；须提前确认轨道型号' },
+  '微水泥/艺术涂料施工（基层+面层+封釉）':{ unit:'㎡', must: false, note:'基层须冲筋找平（误差≤2mm/m）；标准工序：底漆→中涂→面涂→保护剂；建议进口品牌（Topciment/DesertGroup）' },
+  '无踢脚线地面漆收口':        { unit:'m', must: false, note:'油漆须延伸至地面≥5cm；地面与墙面交界处须做R角收口；须确认油漆师傅有此经验' },
+  '石膏弧形造型背景墙':        { unit:'㎡', must: false, note:'基层须用石膏板弯折（湿法弯曲）；干燥后再刮腻子；建议先做小块样板确认效果' },
+  '木饰面墙板安装（阻燃板基层+饰面贴合）':{ unit:'㎡', must: false, note:'须检查阻燃基板是否含在合同内；木饰面须做六面封漆防潮；安装前须检测基层含水率≤12%' },
+  '天然石材加工安装（含防护处理）':{ unit:'㎡', must: false, note:'石材须做六面防护处理（正面、背面、四侧）；不防护则渗水返碱无法避免；安装须用专用石材粘接剂' },
+  '定制格栅/屏风制作安装':     { unit:'㎡', must: false, note:'须明确材质：实木（变形率低）or 密度板（易变形）；木格栅须预留伸缩缝≥3mm；安装须找平找直' },
+  '石膏线条/角花安装（含基层固定）':{ unit:'m', must: false, note:'须用白乳胶+钢钉双重固定；纯胶水固定易脱落；线条背面须做防开裂处理' },
+  '护墙板安装（木工制作或成品安装）':{ unit:'㎡', must: false, note:'须明确基层做法：木工板打底 or 挂件系统；木工板打底更平整但占空间；安装前须做防潮处理' },
+  '鱼骨拼/人字拼木地板安装':   { unit:'㎡', must: false, note:'拼花地板损耗约15%-20%；须在合同中注明含损耗量；安装方向须与业主确认后再铺；防潮垫须满铺' },
+  '清水混凝土漆/仿清水漆施工':{ unit:'㎡', must: false, note:'基层须冲筋找平（误差≤2mm/m）；建议先做1㎡样品确认效果；须用渗透型底漆+面漆体系' },
+  '水泥自流平地面施工':        { unit:'㎡', must: false, note:'基层含水率须≤4%；施工后须养护≥7天；面层须做固化处理；不达标会出现起壳、开裂' },
+  '白色/浅色哑光漆墙面精涂':   { unit:'㎡', must: false, note:'北欧风墙面平整度要求极高；建议冲筋找平；须用细砂纸打磨（320目以上）；白色墙面更显裂纹，验收须用强光手电' },
+  '木质地板（浅色橡木/枫木）安装':{ unit:'㎡', must: false, note:'地板厚度须≥12mm；浅色地板不耐脏，须在合同注明含保护膜；防潮垫须满铺，接缝处用胶带封死' },
+  '无主灯系统布线（磁吸轨道灯）':{ unit:'m', must: false, note:'同磁吸无主灯布线；须提前布专用回路；轨道须先安装底座再布线' },
+  '地面通铺对缝工艺（含损耗）':{ unit:'㎡', must: false, note:'通铺损耗约8%-12%；须在合同中注明含损耗补贴；瓷砖须从进门第一块砖开始排版，确认对缝起点；木地板通铺须留伸缩缝≥8mm' },
+  '不锈钢/黄铜嵌条安装（大理石分缝）':{ unit:'m', must: false, note:'须确认嵌条材质：实铜（不退色）or 镀铜（易褪色）；嵌条须嵌入地面齐平，不得凸出绊脚；安装须用专业粘接剂' },
+  '大理石/岩板加工安装（含防护）':{ unit:'㎡', must: false, note:'同新中式石材，须六面防护；岩板须用专用粘接剂（德高/雷帝）；接缝处须做同色处理（不建议做美缝）' },
+  '隐藏式灯带槽制作（吊顶内嵌）':{ unit:'m', must: false, note:'灯带槽深度须≥5cm（隐藏变压器）；槽内须刷白漆反射光线；须提前购买灯带确认发光效果后再封板' },
+  '障子门/推拉门安装（含轨道）':{ unit:'套', must: false, note:'地轨须嵌入地面，需在水泥阶段预埋；门扇须调整垂直度；安装后须测试推拉顺滑度' },
+  '藤编/竹编装饰面板安装':     { unit:'㎡', must: false, note:'须做防潮防虫处理（建议浸泡防虫药水）；安装须用不锈钢/铜钉；藤编须预留透气空间' },
+  '壁炉框架制作安装（装饰型）':{ unit:'项', must: false, note:'须确认是否为真火壁炉；装饰型壁炉须与墙面固定牢固；重量须做结构安全评估；不可直接贴墙悬挂大尺寸壁炉' },
+  '实木门套/窗套线条安装':     { unit:'m', must: false, note:'须明确树种：橡胶木/樱桃木/黑胡桃木等；实木线条须做含水率检测（≤12%）；安装前须刷底漆防潮' },
+  '美式护墙板安装（半墙或全墙）':{ unit:'㎡', must: false, note:'基层须找平（误差≤2mm/m）；半墙须弹水平线定位；安装后须填缝打磨平整；线条收口须美观' },
+  '装饰格栅窗制作安装':         { unit:'㎡', must: false, note:'须确认材质：实木/密度板；须做防潮处理；安装须与墙面固定牢固；建议做拆洗设计方便清洁' },
+  '管线外露装饰处理（含电管美化）':{ unit:'项', must: false, note:'须确认外露管材规格（SC管/PVC管）；金属管须做防锈处理；明装管道须横平竖直；管卡间距≤80cm' },
+  '钢铁构件焊接安装（楼梯/铁艺）':{ unit:'项', must: false, note:'须做防锈底漆处理（推荐环氧富锌底漆）；焊接须满焊不允许点焊；安装须与建筑结构固定牢靠；建议要求出具材质证明' },
+  '实木线条收口安装':           { unit:'m', must: false, note:'须明确树种和含水率；实木线条须做防变形处理（背切槽）；安装须用F30气钉+白乳胶；收口处须做45°斜拼' },
+};
+const STYLE_WORKS = {
+  '奶油风': {
+    category: '奶油风专属工艺',
+    icon: '🍦',
+    items: [
+      { name: '弧形门洞砌筑（拱门）', risk: 'medium', note: '须确认工艺（砖砌/石膏板），影响成品质量', craftKey: '门洞处理' },
+      { name: '磁吸无主灯轨道布线安装', risk: 'high', note: '无此布线将无法安装无主灯系统，后期破坏装修', craftKey: '灯光方案' },
+      { name: '微水泥/艺术涂料施工（基层+面层+封釉）', risk: 'high', note: '基层处理是成败关键，须含冲筋找平', craftKey: '墙面处理' },
+      { name: '无踢脚线地面漆收口', risk: 'medium', note: '需确认油漆师傅有相关经验，否则收口难看', craftKey: '踢脚线' },
+      { name: '石膏弧形造型背景墙', risk: 'medium', note: '弧形基层须用石膏板弯折，需专业工人', craftKey: '床头背景墙' },
+    ]
+  },
+  '新中式': {
+    category: '新中式专属工艺',
+    icon: '🏮',
+    items: [
+      { name: '木饰面墙板安装（阻燃板基层+饰面贴合）', risk: 'high', note: '须检查阻燃基板是否含在合同内，否则安全不达标', craftKey: '墙面处理' },
+      { name: '天然石材加工安装（含防护处理）', risk: 'high', note: '石材需含六面防护处理，否则易渗水返碱', craftKey: '墙面处理' },
+      { name: '定制格栅/屏风制作安装', risk: 'medium', note: '须明确材质（实木/密度板），密度板格栅易变形', craftKey: '格栅/屏风' },
+      { name: '实木线条收口安装', risk: 'medium', note: '实木线条须明确树种，影响变形率' },
+    ]
+  },
+  '日式/侘寂风': {
+    category: '日式/侘寂风专属工艺',
+    icon: '🌿',
+    items: [
+      { name: '原木清漆保护涂装（水性UV漆）', risk: 'medium', note: '须确认漆膜厚度和遍数，影响耐用性', craftKey: '墙面处理' },
+      { name: '障子门/推拉门安装（含轨道）', risk: 'medium', note: '轨道须嵌入地面，需在水泥施工阶段预埋' },
+      { name: '藤编/竹编装饰面板安装', risk: 'low', note: '' },
+    ]
+  },
+  '法式': {
+    category: '法式专属工艺',
+    icon: '🌸',
+    items: [
+      { name: '石膏线条/角花安装（含基层固定）', risk: 'medium', note: '石膏线须用白乳胶+钢钉固定，纯胶水易脱落', craftKey: '墙面装饰' },
+      { name: '护墙板安装（木工制作或成品安装）', risk: 'high', note: '须明确基层做法（木工打底还是成品挂件），影响平整度', craftKey: '墙面装饰' },
+      { name: '鱼骨拼/人字拼木地板安装', risk: 'medium', note: '拼花地板损耗约15%-20%，须含损耗量', craftKey: '地面拼花' },
+      { name: '壁炉框架制作安装（装饰型）', risk: 'medium', note: '须确认结构安全，不可直接贴墙悬挂' },
+    ]
+  },
+  '美式': {
+    category: '美式专属工艺',
+    icon: '🏡',
+    items: [
+      { name: '实木门套/窗套线条安装', risk: 'medium', note: '实木线条须明确树种和漆面' },
+      { name: '美式护墙板安装（半墙或全墙）', risk: 'medium', note: '参考法式护墙板，须明确基层' },
+      { name: '装饰格栅窗制作安装', risk: 'low', note: '' },
+    ]
+  },
+  '轻奢': {
+    category: '轻奢专属工艺',
+    icon: '💎',
+    items: [
+      { name: '不锈钢/黄铜嵌条安装（大理石分缝）', risk: 'high', note: '须确认嵌条材质（镀金还是实铜），镀金易褪色', craftKey: '墙面装饰' },
+      { name: '大理石/岩板加工安装（含防护）', risk: 'high', note: '同新中式，石材六面防护缺一不可', craftKey: '洗漱台面' },
+      { name: '隐藏式灯带槽制作（吊顶内嵌）', risk: 'medium', note: '灯带槽深度须≥5cm，否则无法隐藏变压器', craftKey: '灯带设计' },
+    ]
+  },
+  '工业风': {
+    category: '工业风专属工艺',
+    icon: '⚙️',
+    items: [
+      { name: '清水混凝土漆/仿清水漆施工', risk: 'high', note: '基层须冲筋找平，否则肌理不均匀', craftKey: '墙面处理' },
+      { name: '管线外露装饰处理（含电管美化）', risk: 'medium', note: '须确认外露管材规格和安装标准' },
+      { name: '水泥自流平地面施工', risk: 'high', note: '自流平对基层含水率要求极高，须做含水率检测', craftKey: '地面处理' },
+      { name: '钢铁构件焊接安装（楼梯/铁艺）', risk: 'high', note: '须有防锈底漆处理，否则生锈后难以返修' },
+    ]
+  },
+  '北欧': {
+    category: '北欧专属工艺',
+    icon: '❄️',
+    items: [
+      { name: '白色/浅色哑光漆墙面精涂', risk: 'medium', note: '北欧风对墙面平整度要求高，须冲筋找平' },
+      { name: '木质地板（浅色橡木/枫木）安装', risk: 'medium', note: '须明确地板厚度（≥12mm），薄板耐用性差', craftKey: '地面材质' },
+    ]
+  },
+  '现代简约': {
+    category: '现代简约专属工艺',
+    icon: '⬜',
+    items: [
+      { name: '无主灯系统布线（磁吸轨道灯）', risk: 'high', note: '需提前布线，后期无法改造', craftKey: '灯光方案' },
+      { name: '全屋乳胶漆高光/哑光选择说明', risk: 'low', note: '' },
+      { name: '地面通铺对缝工艺（含损耗）', risk: 'medium', note: '通铺需额外补贴，须写明损耗比例', craftKey: '地面铺法' },
+    ]
+  },
+};
+
+// ============================================================
+//  工艺选填数据 —— 按房间
+// ============================================================
+const ROOM_CRAFTS = {
+  '客厅': {
+    common: [
+      { name: '吊顶形式', options: ['全平吊顶', '四周边吊', '不做吊顶', '石膏线收口'] },
+      { name: '灯光方案', options: ['有主灯', '无主灯（磁吸轨道灯+筒灯）'], exclusive: true },
+      { name: '墙面处理', options: ['乳胶漆', '壁纸/壁布', '护墙板'] },
+      { name: '地面材质', options: ['地砖（哑光）', '地砖（抛光）', '实木地板', '复合地板'] },
+    ],
+    style: {
+      '奶油风': [
+        { name: '吊顶形式', options: ['弧形边吊', '异形弧形吊顶'], styleName: '奶油风' },
+        { name: '墙面处理', options: ['微水泥', '硅藻泥艺术涂料'], styleName: '奶油风' },
+        { name: '门洞处理', options: ['弧形门洞（拱形）', '标准方形门洞'], exclusive: true, styleName: '奶油风' },
+        { name: '踢脚线', options: ['无踢脚线（地面漆收口）', '有踢脚线'], exclusive: true, styleName: '奶油风' },
+      ],
+      '新中式': [
+        { name: '墙面处理', options: ['木饰面贴墙', '石材装饰'], styleName: '新中式' },
+        { name: '格栅/屏风', options: ['定制格栅', '定制屏风', '不做'], styleName: '新中式' },
+      ],
+      '法式': [
+        { name: '墙面装饰', options: ['护墙板（全墙）', '护墙板（半墙）', '石膏线条'], styleName: '法式' },
+        { name: '地面拼花', options: ['鱼骨拼木地板', '人字拼木地板', '常规铺法'], styleName: '法式' },
+      ],
+      '工业风': [
+        { name: '墙面处理', options: ['清水混凝土漆', '仿清水漆', '裸砖效果'], styleName: '工业风' },
+        { name: '地面处理', options: ['水泥自流平', '水泥瓷砖', '常规地砖'], styleName: '工业风' },
+      ],
+      '轻奢': [
+        { name: '墙面装饰', options: ['大理石背景墙', '金属嵌条分缝', '护墙板+嵌条'], styleName: '轻奢' },
+        { name: '灯带设计', options: ['隐藏灯带槽（吊顶）', '无灯带'], styleName: '轻奢' },
+      ],
+      '现代简约': [
+        { name: '灯光方案', options: ['无主灯系统（磁吸）', '有主灯'], exclusive: true, styleName: '现代简约' },
+        { name: '地面铺法', options: ['通铺对缝', '常规铺法'], styleName: '现代简约' },
+      ],
+      '日式/侘寂风': [
+        { name: '墙面处理', options: ['原木护墙板', '硅藻泥', '素面乳胶漆'], styleName: '日式/侘寂' },
+      ],
+      '北欧': [
+        { name: '地面材质', options: ['浅色橡木地板', '浅色枫木地板', '白色哑光砖'], styleName: '北欧' },
+      ],
+    }
+  },
+  '卧室': {
+    common: [
+      { name: '吊顶形式', options: ['不做吊顶', '石膏线收口', '边吊', '全平吊顶'] },
+      { name: '灯光方案', options: ['主灯+壁灯', '无主灯（筒灯+灯带）'], exclusive: true },
+      { name: '床头背景墙', options: ['乳胶漆', '壁布/壁纸', '护墙板'] },
+      { name: '衣柜形式', options: ['移门衣柜', '平开门衣柜', '定制衣柜'] },
+    ],
+    style: {
+      '奶油风': [
+        { name: '床头背景墙', options: ['石膏弧形造型', '布艺软包', '圆弧贴砖'], styleName: '奶油风' },
+        { name: '衣柜设计', options: ['隐形门一体柜（与墙齐平）', '常规衣柜'], styleName: '奶油风' },
+      ],
+      '新中式': [
+        { name: '床头背景墙', options: ['木饰面造型', '石材+木饰面', '布艺+木线条'], styleName: '新中式' },
+      ],
+      '法式': [
+        { name: '床头背景墙', options: ['护墙板+石膏线', '布艺软包+线条', '壁纸+装饰边框'], styleName: '法式' },
+      ],
+      '轻奢': [
+        { name: '床头背景墙', options: ['大理石+金属嵌条', '皮革软包+金属条', '暗纹硬包'], styleName: '轻奢' },
+      ],
+    }
+  },
+  '厨房': {
+    common: [
+      { name: '吊顶材质', options: ['铝扣板吊顶', '集成吊顶'] },
+      { name: '墙砖规格', options: ['300×600', '400×800', '600×1200'] },
+      { name: '地砖规格', options: ['300×300', '400×400', '600×600'] },
+    ],
+    style: {
+      '奶油风': [
+        { name: '墙砖风格', options: ['奶白色哑光长条砖（小白砖）', '米色系哑光砖', '常规白砖'], styleName: '奶油风' },
+      ],
+      '新中式': [
+        { name: '墙砖风格', options: ['复古花纹砖', '水墨纹砖', '常规瓷砖'], styleName: '新中式' },
+      ],
+      '工业风': [
+        { name: '墙砖风格', options: ['水泥灰系列砖', '地铁砖（小白砖）', '常规瓷砖'], styleName: '工业风' },
+      ],
+    }
+  },
+  '卫生间': {
+    common: [
+      { name: '墙砖颜色', options: ['白色', '灰色', '深色系', '彩色'] },
+      { name: '淋浴隔断', options: ['玻璃隔断', '淋浴房', '浴帘', '干湿不分离'] },
+      { name: '洗漱台', options: ['台下盆', '台上盆', '悬浮台盆'] },
+      { name: '马桶位置', options: ['靠墙安装', '含下沉地台'] },
+    ],
+    style: {
+      '奶油风': [
+        { name: '墙砖风格', options: ['奶白/米色哑光砖', '弧形边格砖', '常规白砖'], styleName: '奶油风' },
+        { name: '收边处理', options: ['无收边条（留缝处理）', '铝合金收边条'], exclusive: true, styleName: '奶油风' },
+        { name: '淋浴隔断', options: ['弧形半墙+玻璃', '半墙+玻璃', '全玻璃隔断'], styleName: '奶油风' },
+      ],
+      '轻奢': [
+        { name: '洗漱台面', options: ['大理石台面', '岩板台面', '人造石台面'], styleName: '轻奢' },
+      ],
+      '日式/侘寂风': [
+        { name: '地面处理', options: ['防滑哑光小砖', '木纹防滑砖', '常规地砖'], styleName: '日式/侘寂' },
+      ],
+    }
+  },
+  '玄关': {
+    common: [
+      { name: '玄关柜形式', options: ['顶天立地柜', '半截柜', '不做柜', '定制鞋柜'] },
+      { name: '地面处理', options: ['与客厅一体铺', '单独铺贴', '拼花/嵌入装饰'] },
+    ],
+    style: {
+      '奶油风': [
+        { name: '门洞造型', options: ['弧形拱门', '方形门洞', '不做造型'], styleName: '奶油风' },
+      ],
+      '新中式': [
+        { name: '屏风/隔断', options: ['定制格栅屏风', '石材隔断', '不做'], styleName: '新中式' },
+      ],
+    }
+  },
+  '阳台': {
+    common: [
+      { name: '阳台用途', options: ['洗衣晾晒', '休闲阳台', '绿植花园', '储物'] },
+      { name: '封阳台', options: ['封阳台（断桥铝）', '不封', '已封'] },
+      { name: '地面处理', options: ['防滑地砖', '防腐木地板', '水磨石'] },
+    ],
+    style: {}
+  },
+};
+
+// ============================================================
+//  空间维度施工清单（来源：兔巴士2025装修报价模板）
+// ============================================================
+const SPACE_WORKS = {
+  '客厅': {
+    icon: '🛋️',
+    items: [
+      { name: '吊顶', type: '按需', unit: '㎡', price: '120~160元', note: '底板托侧板，拐角处做"L"形处理，自攻螺丝固定' },
+      { name: '窗帘盒', type: '按需', unit: 'm', price: '70~130元', note: '15mm木芯板框架、9mm纸面石膏板罩面' },
+      { name: '石膏线条', type: '按需', unit: 'm', price: '15~25元', note: '斜边长度8~12cm，异型超宽另计' },
+      { name: '墙顶面刷墙锢处理', type: '必做', unit: '㎡', price: '8~12元', note: '腻子铲除后基层清理干净再刷墙锢，增强附着力' },
+      { name: '墙顶面基层处理（石膏找平）', type: '注意', unit: '㎡', price: '18~25元', note: '阴阳角做直，吊顶拼缝绷带防裂，钉眼防锈' },
+      { name: '墙面挂纤维网', type: '注意', unit: '㎡', price: '15~20元', note: '网格搭接宽度5~10cm，可减少开裂但不能完全杜绝' },
+      { name: '墙顶面批腻子', type: '必做', unit: '㎡', price: '25~32元', note: '批刮后打磨处理，常规2遍，挂网格布需3遍' },
+      { name: '墙顶面刷涂料', type: '必做', unit: '㎡', price: '10~15元', note: '一遍底漆，两遍面漆；超3种颜色人工费另加' },
+      { name: '地砖波打线/铜条铺装', type: '按需', unit: 'm', price: '35~45元', note: '波导线或铜条铺装' },
+      { name: '地砖干硬砂浆垫层', type: '注意', unit: '㎡', price: '35~45元', note: '2米范围内3cm以内偏差，超厚度按比例收费' },
+      { name: '墙面贴踢脚线（暗装）', type: '按需', unit: 'm', price: '25~35元', note: '含人工与水泥砂浆，主材业主自购；大理石踢脚线45元/m' },
+      { name: '地面铺砖', type: '按需', unit: '㎡', price: '65~80元', note: '600~800mm范围内，干铺法；异形拼花另计' },
+    ]
+  },
+  '餐厅/过道': {
+    icon: '🍽️',
+    items: [
+      { name: '吊顶', type: '按需', unit: '㎡', price: '120~160元', note: '按展开面积算，底板托侧板' },
+      { name: '窗帘盒', type: '按需', unit: 'm', price: '70~130元', note: '15mm木芯板框架、9mm石膏板罩面' },
+      { name: '墙顶面刷墙锢处理', type: '必做', unit: '㎡', price: '8~12元', note: '增强基层附着力' },
+      { name: '墙顶面批腻子', type: '必做', unit: '㎡', price: '25~32元', note: '批刮后打磨，常规2遍' },
+      { name: '墙顶面刷涂料', type: '必做', unit: '㎡', price: '10~15元', note: '一底两面' },
+      { name: '墙面贴踢脚线（暗装）', type: '按需', unit: 'm', price: '25~35元', note: '含人工与辅材，主材业主购' },
+      { name: '地面铺砖', type: '按需', unit: '㎡', price: '65~80元', note: '干铺法，异形另计' },
+    ]
+  },
+  '阳台': {
+    icon: '🌿',
+    items: [
+      { name: '墙顶面刷墙锢处理', type: '必做', unit: '㎡', price: '8~12元', note: '增强附着力' },
+      { name: '墙顶面批腻子', type: '必做', unit: '㎡', price: '18~25元', note: '阴阳角做直，拼缝绷带防裂' },
+      { name: '墙顶面刷涂料', type: '必做', unit: '㎡', price: '10~15元', note: '一底两面' },
+      { name: '墙面水泥砂浆修补找平', type: '必做', unit: '㎡', price: '35~45元', note: '修补原墙面' },
+      { name: '防水施工', type: '按需', unit: '㎡', price: '65~85元', note: '阳台防水须做，漏水影响楼下纠纷多' },
+      { name: '墙面铺砖', type: '按需', unit: '㎡', price: '65~75元', note: '干铺法' },
+      { name: '地面铺砖', type: '按需', unit: '㎡', price: '65~80元', note: '干铺法，须留排水坡度' },
+      { name: '封立管', type: '注意', unit: '根', price: '150~200元', note: '隔音+美观，须留检修口' },
+      { name: '大理石门槛石铺设', type: '必做', unit: 'm', price: '120~150元', note: '须做六面防护；安装前确认门框高度' },
+    ]
+  },
+  '卧室': {
+    icon: '🛏️',
+    items: [
+      { name: '窗台大理石', type: '必做', unit: 'm', price: '120~250元', note: '普通120~150元，飘窗200~250元' },
+      { name: '吊顶', type: '按需', unit: '㎡', price: '120~160元', note: '底板托侧板' },
+      { name: '窗帘盒', type: '按需', unit: 'm', price: '70~130元', note: '15mm木芯板框架' },
+      { name: '墙顶面刷墙锢处理', type: '必做', unit: '㎡', price: '8~12元', note: '增强附着力' },
+      { name: '墙顶面批腻子', type: '必做', unit: '㎡', price: '25~32元', note: '批刮后打磨，常规2遍' },
+      { name: '墙顶面刷涂料', type: '必做', unit: '㎡', price: '10~15元', note: '一底两面' },
+      { name: '大理石门槛石铺设', type: '必做', unit: 'm', price: '120~150元', note: '须做六面防护' },
+      { name: '墙面贴踢脚线（暗装）', type: '按需', unit: 'm', price: '25~35元', note: '含人工辅材，主材业主购' },
+      { name: '水泥砂浆找平（贴木地板）', type: '注意', unit: '㎡', price: '70~90元', note: '木地板铺前需先找平' },
+      { name: '地面铺砖/铺地板', type: '按需', unit: '㎡', price: '25~80元', note: '地砖65~80元/㎡，地板安装25~35元/㎡' },
+    ]
+  },
+  '厨房': {
+    icon: '🍳',
+    items: [
+      { name: '墙面水泥砂浆修补找平', type: '必做', unit: '㎡', price: '45~55元', note: '修补原墙面' },
+      { name: '防水施工', type: '按需', unit: '㎡', price: '65~85元', note: '厨房防水易被忽视，管道根部须做附加层' },
+      { name: '墙面打毛或拉毛处理', type: '注意', unit: '㎡', price: '15~20元', note: '增强砖与墙面粘结力，光滑墙面必做' },
+      { name: '墙面铺砖', type: '必做', unit: '㎡', price: '65~80元', note: '须用瓷砖胶，禁水泥直贴' },
+      { name: '地砖干硬砂浆垫层', type: '注意', unit: '㎡', price: '35~45元', note: '超厚另计' },
+      { name: '地面铺砖', type: '必做', unit: '㎡', price: '65~75元', note: '干铺法' },
+      { name: '大理石门槛石铺设', type: '必做', unit: 'm', price: '120~150元', note: '须六面防护' },
+      { name: '厨房包立管', type: '必做', unit: '根', price: '150~200元', note: '须留检修口，隔音处理' },
+      { name: '吊顶（铝扣板）', type: '必做', unit: '㎡', price: '120~180元', note: '推荐铝扣板，防油烟防潮' },
+    ]
+  },
+  '卫生间': {
+    icon: '🚿',
+    items: [
+      { name: '墙面水泥砂浆修补找平', type: '必做', unit: '㎡', price: '35~45元', note: '修补原墙面' },
+      { name: '地面找平', type: '必做', unit: '㎡', price: '35~45元', note: '找平误差须≤3mm/2m' },
+      { name: '防水施工', type: '必做', unit: '㎡', price: '65~85元', note: '墙面防水高度≥1.8m；门口做挡水埂；闭水试验≥48h' },
+      { name: '沉箱回填处理', type: '按需', unit: '㎡', price: '240~280元', note: '沉降式卫生间必做，回填材料须用陶粒或泡沫砖' },
+      { name: '墙面打毛或拉毛处理', type: '注意', unit: '㎡', price: '15~20元', note: '光滑墙面必做，增强粘结力' },
+      { name: '墙面铺砖', type: '必做', unit: '㎡', price: '65~75元', note: '须用瓷砖胶' },
+      { name: '地面铺砖', type: '必做', unit: '㎡', price: '65~75元', note: '须留排水坡度≥2%' },
+      { name: '地漏', type: '必做', unit: '个', price: '50~55元', note: '建议使用带密封圈的防臭地漏' },
+      { name: '墙砖阳角条', type: '按需', unit: 'm', price: '35~45元', note: '有外露阳角时安装，防碰撞破损' },
+      { name: '大理石门槛石铺设', type: '必做', unit: 'm', price: '120~150元', note: '须六面防护，防止渗水' },
+      { name: '吊顶（铝扣板）', type: '必做', unit: '㎡', price: '120~180元', note: '防潮防水，推荐铝扣板' },
+      { name: '淋浴房挡水槛', type: '必做', unit: 'm', price: '120~150元', note: '防水必要构件，须与防水层共同施工' },
+      { name: '封立管', type: '必做', unit: '根', price: '150~200元', note: '须留检修口；隔音棉包裹降噪' },
+    ]
+  },
+  '水电工程': {
+    icon: '⚡',
+    items: [
+      { name: '砖墙开槽封槽', type: '必做', unit: 'm', price: '15~20元', note: '砖墙开槽' },
+      { name: '混凝土墙开槽封槽', type: '必做', unit: 'm', price: '22~25元', note: '混凝土开槽需水刀，费用更高' },
+      { name: '强电箱原位安装', type: '按需', unit: '套', price: '400~500元', note: '旧房换配电箱，须含漏电保护器≥32A' },
+      { name: '弱电箱原位安装', type: '按需', unit: '套', price: '400~500元', note: '弱电集中管理' },
+      { name: '暗盒/八角盒', type: '必做', unit: '个', price: '12~15元', note: '每个插座开关点位均需' },
+      { name: '2.5平单芯电线', type: '必做', unit: 'm', price: '6~8元', note: '普通插座回路用' },
+      { name: '4平单芯电线', type: '必做', unit: 'm', price: '8~12元', note: '空调、热水器专用回路' },
+      { name: '八芯网络线排放', type: '必做', unit: 'm', price: '7~10元', note: '超六类网线，每个网口需排放' },
+      { name: '双频电视线排放', type: '必做', unit: 'm', price: '7~10元', note: '电视点位需排放' },
+      { name: '给水管排放安装', type: '必做', unit: 'm', price: '40~70元', note: 'PPR管；打压0.8MPa×30min不掉压' },
+      { name: 'PVC排水管及配件', type: '必做', unit: 'm', price: '45~60元', note: '须存水弯防臭' },
+      { name: '下水管隔声处理', type: '必做', unit: 'm', price: '50~65元', note: '橡塑隔音棉≥15mm；降噪必做' },
+      { name: 'PVC线管', type: '必做', unit: 'm', price: '8~12元', note: '电线须穿管，裸线不符合规范' },
+    ]
+  },
+  '拆除/新建': {
+    icon: '🔨',
+    items: [
+      { name: '拆除砖砌墙（200mm以内）', type: '按需', unit: '㎡', price: '45~50元', note: '须确认是否承重墙，非承重方可拆除' },
+      { name: '新砌墙体（120~160mm）', type: '按需', unit: '㎡', price: '120~150元', note: '须植筋挂钢网，禁止裸砖直接刮腻子' },
+      { name: '新砌墙体（160~240mm）', type: '按需', unit: '㎡', price: '140~200元', note: '同上，厚度更大' },
+      { name: '卫生间砌砖墙防水地梁', type: '按需', unit: 'm', price: '120~150元', note: '地梁高度≥10cm，浇筑前须植筋' },
+      { name: '吊顶拆除', type: '按需', unit: '㎡', price: '15~25元', note: '旧房翻新时需拆' },
+      { name: '墙地砖拆除', type: '按需', unit: '间', price: '600~1000元', note: '含清运' },
+      { name: '门窗拆除后修补', type: '按需', unit: 'm', price: '40~60元', note: '门洞封堵或重新开洞' },
+      { name: '成品保护', type: '必做', unit: '项', price: '12~15元/㎡', note: '地砖铺后须铺保护膜；门扇须珍珠棉包裹' },
+    ]
+  },
+};
+
+// ============================================================
+//  关键词匹配字典
+// ============================================================
+const KEYWORD_MAP = {
+  '原始墙体拆除': ['拆除', '墙体拆除', '拆墙', '拆改', '墙体改造'],
+  '新建轻钢龙骨/砖砌隔墙': ['隔墙', '新建墙', '砌墙', '轻钢龙骨', '砌筑'],
+  '原墙面腻子铲除': ['铲墙', '铲除', '腻子铲除', '铲腻子'],
+  '垃圾清运（施工全程）': ['垃圾清运', '清运', '外运', '弃料'],
+  '入户门灌浆': ['灌浆', '入户门', '门框', '大门'],
+  '倒地梁施工（厨卫阳台）': ['地梁', '倒地梁', '反坎', '防水地梁'],
+  '全屋强弱电改造': ['水电', '强电', '弱电', '电路', '电改', '电线'],
+  '全屋给排水改造': ['水管', '给水', '排水', '水改', '管道', 'PPR'],
+  '配电箱检测与改造': ['配电箱', '强电箱', '开关箱', '空气开关'],
+  '开关插座点位明细（含数量）': ['插座', '开关', '点位', '插口', '面板'],
+  '水电打压测试': ['打压', '试压', '打压测试', '水压'],
+  '水电验收确认': ['水电验收', '验收', '隐蔽验收'],
+  '空调冷媒管路及开孔': ['空调', '冷媒', '空调管', '空调孔', '开孔'],
+  '卫生间地面防水（含墙面1.8m）': ['卫生间防水', '防水', '卫浴防水', '墙面防水'],
+  '厨房地面防水（含墙面0.3m）': ['厨房防水', '防水', '厨卫防水'],
+  '阳台地面防水（含墙面0.3m）': ['阳台防水', '防水'],
+  '防水闭水试验（24-48小时）': ['闭水', '蓄水', '防水试验', '闭水试验'],
+  '地面找平': ['找平', '地面找平', '水泥找平', '自流平'],
+  '墙地砖铺贴（含辅材）': ['铺砖', '铺贴', '墙砖', '地砖', '瓷砖', '砖铺'],
+  '门槛石铺贴': ['门槛石', '过门石', '门槛'],
+  '全屋美缝': ['美缝', '勾缝', '填缝'],
+  '水电槽修补': ['槽修补', '水电槽', '线槽', '修补'],
+  '吊顶工程（石膏板+轻钢龙骨）': ['吊顶', '天花', '石膏板', '龙骨', '吊顶工程'],
+  '窗帘盒制作': ['窗帘盒', '窗帘槽', '隐藏窗帘'],
+  '全屋墙面基层处理（腻子三遍）': ['腻子', '刮腻子', '基层', '墙面基层', '批腻子'],
+  '底漆+面漆涂刷（含吊顶）': ['乳胶漆', '底漆', '面漆', '涂料', '墙漆', '油漆'],
+  '墙面挂网防开裂': ['挂网', '防裂网', '抗裂布', '玻纤网'],
+  '阳角护角条安装': ['护角', '阳角', '护角条', '阴阳角'],
+  '成品保护（地面/门窗）': ['成品保护', '保护', '地面保护', '保护膜'],
+  '灯具安装（全套）': ['灯具安装', '灯具', '安装灯', '灯安装'],
+  '竣工验收标准约定': ['验收', '竣工验收', '验收标准', '交付'],
+  '增减项书面确认流程': ['增减项', '变更', '工程变更', '增项'],
+  '完工保洁': ['保洁', '完工保洁', '竣工保洁', '清洁'],
+  '排水管隔音棉包裹': ['隔音棉', '隔音', '排水管', '包管'],
+  '弧形门洞砌筑（拱门）': ['弧形门洞', '拱形门洞', '圆弧门洞', '弧形门'],
+  '磁吸无主灯轨道布线安装': ['无主灯', '磁吸轨道', '轨道灯', '磁吸灯', '无主灯布线'],
+  '微水泥/艺术涂料施工（基层+面层+封釉）': ['微水泥', '艺术涂料', '艺术漆', '肌理漆'],
+  '无踢脚线地面漆收口': ['无踢脚线', '地面漆收口', '踢脚线', '踢脚'],
+  '石膏弧形造型背景墙': ['背景墙', '弧形背景墙', '石膏造型', '弧形造型'],
+  '木饰面墙板安装（阻燃板基层+饰面贴合）': ['木饰面', '木皮', '实木贴皮', '饰面板'],
+  '天然石材加工安装（含防护处理）': ['石材', '大理石', '石板', '岩板', '石材安装'],
+  '定制格栅/屏风制作安装': ['格栅', '屏风', '木格栅', '镂空'],
+  '石膏线条/角花安装（含基层固定）': ['石膏线', '角花', '石膏装饰', '石膏线条'],
+  '护墙板安装（木工制作或成品安装）': ['护墙板', '墙板', '挂板', '装饰墙板'],
+  '鱼骨拼/人字拼木地板安装': ['鱼骨拼', '人字拼', '拼花地板', '人字形地板'],
+  '不锈钢/黄铜嵌条安装（大理石分缝）': ['嵌条', '金属嵌条', '黄铜线', '不锈钢嵌条'],
+  '隐藏式灯带槽制作（吊顶内嵌）': ['灯带槽', '灯带', '暗藏灯带', '隐藏灯带'],
+  '清水混凝土漆/仿清水漆施工': ['清水漆', '清水混凝土', '仿清水漆', '肌理漆'],
+  '水泥自流平地面施工': ['自流平', '水泥自流平', '流平'],
+};
+
+// ============================================================
+//  STEP 1 → 初始化单选标签
+// ============================================================
+document.querySelectorAll('.radio-group').forEach(group => {
+  group.querySelectorAll('.radio-tag').forEach(tag => {
+    tag.addEventListener('click', () => {
+      group.querySelectorAll('.radio-tag').forEach(t => t.classList.remove('active'));
+      tag.classList.add('active');
+    });
+  });
+});
+
+function getRadioVal(groupId) {
+  const el = document.querySelector(`#${groupId} .radio-tag.active`);
+  return el ? el.dataset.val : '';
+}
+
+// ============================================================
+//  城市等级识别
+// ============================================================
+const CITY_TIER = {
+  '一线': ['北京','上海','广州','深圳'],
+  '新一线': ['成都','杭州','重庆','武汉','苏州','西安','南京','长沙','郑州','天津','合肥','青岛','东莞','宁波','佛山'],
+  '二线': [
+    '济南','无锡','沈阳','昆明','福州','厦门','温州','石家庄','大连','哈尔滨',
+    '金华','泉州','南宁','长春','常州','南昌','南通','贵阳','嘉兴','徐州',
+    '惠州','太原','烟台','临沂','保定','台州','绍兴','珠海','洛阳','潍坊'
+  ],
+};
+
+function detectCityLevel(val) {
+  const city = val.trim().replace(/市$/, '');
+  const tag = document.getElementById('cityLevelTag');
+  if (!city) { tag.innerHTML = ''; return; }
+  let tier = null;
+  for (const [t, cities] of Object.entries(CITY_TIER)) {
+    if (cities.some(c => c === city || city.includes(c) || c.includes(city))) { tier = t; break; }
+  }
+  if (!tier) tier = '三线及以下';
+  const classMap = { '一线': 'tier1', '新一线': 'tier-new1', '二线': 'tier2', '三线及以下': 'tier3' };
+  const labelMap = { '一线': '🏙️ 一线城市（北上广深）', '新一线': '🌆 新一线城市', '二线': '🏘️ 二线城市', '三线及以下': '🏡 三线及以下' };
+  tag.innerHTML = `<span class="city-level-tag ${classMap[tier]}">${labelMap[tier]}，报价参考将自动匹配</span>`;
+  state._detectedCityLevel = tier;
+}
+
+// ============================================================
+//  STEP 1 → 下一步
+// ============================================================
+function goToStep2() {
+  const name = document.getElementById('projectName').value.trim();
+  const area = document.getElementById('area').value.trim();
+  const cityInput = document.getElementById('cityInput').value.trim();
+  if (!name) { showToast('请填写项目名称'); return; }
+  if (!area || isNaN(area) || area < 10) { showToast('请填写有效的房屋面积'); return; }
+  if (!getRadioVal('houseType')) { showToast('请选择户型'); return; }
+  if (!getRadioVal('renovType')) { showToast('请选择装修类型'); return; }
+  if (!cityInput) { showToast('请填写所在城市'); return; }
+  if (!getRadioVal('styleType')) { showToast('请选择装修风格'); return; }
+
+  // 确保城市等级已识别
+  if (!state._detectedCityLevel) detectCityLevel(cityInput);
+  const cityLevel = state._detectedCityLevel || '三线及以下';
+
+  state.projectName = name;
+  state.area = area;
+  state.houseType = getRadioVal('houseType');
+  state.renovType = getRadioVal('renovType');
+  state.cityLevel = cityLevel;
+  state.cityName = cityInput.trim().replace(/市$/, '');
+  state.styleType = getRadioVal('styleType');
+
+  buildStep2();
+  goToStep(2);
+}
+
+// ============================================================
+//  STEP 2 → 构建工艺选填页
+// ============================================================
+function buildStep2() {
+  const title = document.getElementById('step2-title');
+  title.innerHTML = `<span class="card-title-icon">${getStyleIcon(state.styleType)}</span>工艺方案选填 · ${state.styleType}`;
+
+  const rooms = Object.keys(ROOM_CRAFTS);
+  const tabsEl = document.getElementById('roomTabs');
+  tabsEl.innerHTML = '';
+  rooms.forEach((room, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'room-tab' + (i === 0 ? ' active' : '');
+    tab.textContent = room;
+    tab.onclick = () => {
+      document.querySelectorAll('.room-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      renderCraftRoom(room);
+    };
+    tabsEl.appendChild(tab);
+  });
+  renderCraftRoom(rooms[0]);
+}
+
+function getStyleIcon(style) {
+  const iconMap = { '奶油风': '🍦', '现代简约': '⬜', '新中式': '🏮', '日式/侘寂风': '🌿', '法式': '🌸', '美式': '🏡', '轻奢': '💎', '工业风': '⚙️', '北欧': '❄️' };
+  return iconMap[style] || '🔨';
+}
+
+function renderCraftRoom(room) {
+  const data = ROOM_CRAFTS[room];
+  const styleOptions = (data.style && data.style[state.styleType]) || [];
+  const container = document.getElementById('craftContent');
+  container.innerHTML = '';
+
+  if (!state.craftSelections[room]) state.craftSelections[room] = {};
+
+  // 通用工艺
+  if (data.common && data.common.length) {
+    const sec = document.createElement('div');
+    sec.className = 'craft-section';
+    sec.innerHTML = `<div class="craft-section-title">── 通用工艺选项</div><div class="craft-items" id="common-items"></div>`;
+    container.appendChild(sec);
+    data.common.forEach(craft => {
+      renderCraftItem(sec.querySelector('.craft-items'), room, craft, false);
+    });
+  }
+
+  // 风格专属
+  if (styleOptions.length) {
+    const sec = document.createElement('div');
+    sec.className = 'craft-section';
+    sec.innerHTML = `<div class="craft-section-title" style="color:#FF2442">── ${state.styleType} 专属工艺 <span style="font-weight:400;color:#999">（非必填，不做可选"无"）</span></div><div class="craft-items" id="style-items"></div>`;
+    container.appendChild(sec);
+    styleOptions.forEach(craft => {
+      // 风格专属工艺：末尾追加「无」选项，且为独占单选
+      const craftWithNone = { ...craft, options: [...craft.options, '无'], exclusive: true };
+      renderCraftItem(sec.querySelector('.craft-items'), room, craftWithNone, true);
+    });
+  }
+}
+
+function renderCraftItem(container, room, craft, isStyle) {
+  const sel = state.craftSelections[room][craft.name] || null;
+  const item = document.createElement('div');
+  item.className = 'craft-item';
+  item.innerHTML = `
+    <div class="craft-item-header" onclick="toggleCraftOpts(this)">
+      <div class="craft-item-name">${craft.name}${isStyle ? `<span class="style-badge">${craft.styleName || state.styleType}</span>` : ''}</div>
+      <div class="craft-item-selected" id="sel-${room}-${craft.name}">${sel || '未选'}</div>
+    </div>
+    <div class="craft-options" style="display:none">
+      ${craft.options.map(opt => `<div class="craft-opt${craft.exclusive ? ' exclusive' : ''}${opt === '无' ? ' none-opt' : ''}${sel === opt ? ' active' : ''}" onclick="selectCraft('${room}','${escStr(craft.name)}','${escStr(opt)}',this,${!!craft.exclusive})">${opt}</div>`).join('')}
+    </div>`;
+  container.appendChild(item);
+}
+
+function toggleCraftOpts(header) {
+  const opts = header.nextElementSibling;
+  opts.style.display = opts.style.display === 'none' ? 'flex' : 'none';
+}
+
+function selectCraft(room, craftName, optVal, el, exclusive) {
+  if (!state.craftSelections[room]) state.craftSelections[room] = {};
+  const opts = el.parentElement.querySelectorAll('.craft-opt');
+  if (exclusive) {
+    opts.forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+    state.craftSelections[room][craftName] = optVal;
+  } else {
+    el.classList.toggle('active');
+    const selected = [];
+    opts.forEach(o => { if (o.classList.contains('active')) selected.push(o.textContent); });
+    state.craftSelections[room][craftName] = selected.join('、') || null;
+  }
+  const selLabel = document.getElementById(`sel-${room}-${craftName}`);
+  if (selLabel) selLabel.textContent = state.craftSelections[room][craftName] || '未选';
+}
+
+function escStr(s) { return s.replace(/'/g, "\\'"); }
+
+// ============================================================
+//  STEP 3 → 生成清单
+// ============================================================
+function goToStep3() {
+  state.checklistView = 'process';
+  buildChecklist();
+  goToStep(3);
+  // 重置视图 tab
+  document.getElementById('viewByProcess').classList.add('active');
+  document.getElementById('viewBySpace').classList.remove('active');
+}
+
+function buildChecklist() {
+  const city = state.cityLevel;
+  const allItems = [];
+
+  // 通用工程
+  COMMON_WORKS.forEach(cat => {
+    cat.items.forEach(item => {
+      const sup = ITEM_SUPPLEMENT[item.name] || {};
+      allItems.push({ ...item, ...sup, category: cat.category, categoryIcon: cat.icon, isStyle: false, status: 'unchecked' });
+    });
+  });
+
+  // 风格专属——根据 Step2 用户选择动态过滤
+  const sw = STYLE_WORKS[state.styleType];
+  if (sw) {
+    // 互斥映射：用户选了 A 选项 → 应从清单中排除 B 项
+    const EXCLUDE_MAP = {
+      // 奶油风
+      '标准方形门洞': ['弧形门洞砌筑（拱门）'],
+      '有踢脚线': ['无踢脚线地面漆收口'],
+      '铝合金收边条': ['无收边条（留缝处理）'],
+      '无主灯（磁吸轨道灯+筒灯）': ['磁吸无主灯轨道布线安装'],
+      // 工业风
+      '水泥瓷砖': ['水泥自流平地面施工'],
+      '常规地砖': ['水泥自流平地面施工'],
+      // 法式
+      '常规铺法': ['鱼骨拼/人字拼木地板安装'],
+      // 新中式
+      '不做': ['定制格栅/屏风制作安装'], // 「不做」泛指不做屏风/格栅
+      // 日式/侘寂风
+      '硅藻泥': ['原木清漆保护涂装（水性UV漆）'],
+      '素面乳胶漆': ['原木清漆保护涂装（水性UV漆）'],
+      // 北欧
+      '白色哑光砖': ['木质地板（浅色橡木/枫木）安装'],
+    };
+
+    sw.items.forEach(item => {
+      // 有 craftKey 的项，根据用户选择过滤
+      if (item.craftKey) {
+        const skip = Object.values(state.craftSelections).some(roomSel => {
+          const val = roomSel[item.craftKey];
+          if (!val || val === '未选') return false;
+          // 选了「无」→ 跳过
+          if (val === '无') return true;
+          // 选了"不做XXX" → 跳过
+          if (val.includes('不做')) return true;
+          // 查互斥映射
+          const excludes = EXCLUDE_MAP[val];
+          if (excludes && excludes.includes(item.name)) return true;
+          return false;
+        });
+        if (skip) return;
+      }
+      const sup = ITEM_SUPPLEMENT[item.name] || {};
+      allItems.push({ ...item, ...sup, category: sw.category, categoryIcon: sw.icon, isStyle: true, status: 'unchecked' });
+    });
+  }
+
+  state.checklist = allItems;
+
+  // 渲染 meta
+  const high = allItems.filter(i => i.risk === 'high').length;
+  const meta = document.getElementById('checklistMeta');
+  meta.innerHTML = `
+    <div class="card-title"><span class="card-title-icon">📋</span>${state.projectName}</div>
+    <div class="checklist-header">
+      <div class="checklist-summary">共 <strong>${allItems.length}</strong> 项施工内容 · <strong style="color:#FF2442">${high}</strong> 项高风险</div>
+      <button class="btn btn-primary btn-sm" onclick="checkAll()">全部勾选</button>
+    </div>
+    <div style="font-size:12px;color:#999;line-height:1.7">
+      风格：${state.styleType} · 户型：${state.houseType} · 类型：${state.renovType}<br>
+      城市：${city} · 面积：${state.area}㎡
+    </div>`;
+
+  renderChecklist();
+}
+
+function renderChecklist() {
+  const container = document.getElementById('checklistContent');
+  container.innerHTML = '';
+  const grouped = {};
+  state.checklist.forEach(item => {
+    if (!grouped[item.category]) grouped[item.category] = { icon: item.categoryIcon, items: [] };
+    grouped[item.category].items.push(item);
+  });
+  Object.entries(grouped).forEach(([cat, data]) => {
+    const sec = document.createElement('div');
+    sec.className = 'checklist-category';
+    sec.innerHTML = `<div class="category-title">${data.icon} ${cat}</div><div class="checklist-items" id="cat-${cat}"></div>`;
+    container.appendChild(sec);
+    data.items.forEach((item, idx) => {
+      const el = document.createElement('div');
+      el.className = 'checklist-item' + (item.status === 'checked' ? ' checked' : '');
+      el.id = `ci-${item.name}`;
+      el.onclick = () => toggleCheckItem(item.name);
+
+      const statusIcon = item.status === 'found' ? 'found' : item.status === 'missing' ? 'missing' : item.status === 'checked' ? 'found' : 'unchecked';
+      const price = item.priceRef ? (item.priceRef[state.cityLevel] || item.priceRef['二线'] || '') : '';
+      const riskLabel = { high: '高风险', medium: '中风险', low: '低风险' }[item.risk] || '';
+      const riskClass = { high: 'risk-high', medium: 'risk-medium', low: 'risk-low' }[item.risk] || '';
+      const mustLabel = item.must === true ? '必做' : item.must === false ? '按需' : '';
+      const mustBadge = item.must === true ? '<span class="item-must">必做</span>' : item.must === false ? '<span class="item-opt">按需</span>' : '';
+      const priceWithUnit = price ? `${price}${item.unit ? '/'+item.unit : ''}` : '';
+      const itemId = 'ci-' + item.name.replace(/[^\w\u4e00-\u9fa5]/g, '_');
+
+      el.innerHTML = `
+        <div class="status-dot ${statusIcon}"></div>
+        <div class="item-check" id="chk-${item.name}"></div>
+        <div class="item-body">
+          <div class="item-text">${item.name}${item.isStyle ? ` <span class="style-badge">${state.styleType}</span>` : ''}</div>
+          <div class="item-meta">
+            ${riskLabel ? `<span class="risk-badge ${riskClass}">${riskLabel}</span>` : ''}
+            ${mustBadge}
+            ${priceWithUnit ? `<span class="item-price">参考价：${priceWithUnit}</span>` : ''}
+          </div>
+          ${item.note ? `<div class="item-note">⚠️ ${item.note}</div>` : ''}
+          ${item.processNote ? `<div class="process-toggle" onclick="toggleProcess(this, '${itemId}')">📐 施工标准 ▼</div>` : ''}
+          ${item.processNote ? `<div class="process-note" id="pn-${itemId}">📐 ${item.processNote}</div>` : ''}
+        </div>`;
+      sec.querySelector('.checklist-items').appendChild(el);
+    });
+  });
+}
+
+// ============================================================
+//  视图切换
+// ============================================================
+function switchView(mode) {
+  state.checklistView = mode;
+  document.getElementById('viewByProcess').classList.toggle('active', mode === 'process');
+  document.getElementById('viewBySpace').classList.toggle('active', mode === 'space');
+  if (mode === 'process') {
+    renderChecklist();
+  } else {
+    renderSpaceChecklist();
+  }
+}
+
+function renderSpaceChecklist() {
+  const container = document.getElementById('checklistContent');
+  container.innerHTML = '';
+
+  Object.entries(SPACE_WORKS).forEach(([spaceName, spaceData]) => {
+    const sec = document.createElement('div');
+    sec.className = 'checklist-category';
+    const itemsHtml = spaceData.items.map(item => {
+      const typeClass = item.type === '必做' ? 'item-must' : item.type === '注意' ? 'risk-badge risk-medium' : 'item-opt';
+      const typeLabel = item.type === '注意' ? '注意项' : item.type;
+      const itemId = 'sp_' + (spaceName + item.name).replace(/[^\w\u4e00-\u9fa5]/g, '_');
+      // 检查是否已在 process 清单中被用户勾选
+      const linked = state.checklist.find(c => c.name.includes(item.name.replace(/（.*?）/g, '').substring(0,4)));
+      const isFound = linked && linked.status === 'found';
+      const isMissing = linked && linked.status === 'missing';
+      const dotClass = isFound ? 'found' : isMissing ? 'missing' : 'unchecked';
+      return `
+        <div class="checklist-item" id="${itemId}">
+          <div class="status-dot ${dotClass}"></div>
+          <div class="item-check"></div>
+          <div class="item-body">
+            <div class="item-text">${item.name}</div>
+            <div class="item-meta">
+              <span class="${typeClass}">${typeLabel}</span>
+              <span class="item-price">参考价：${item.price}/${item.unit}</span>
+            </div>
+            ${item.note ? `<div class="item-note">💡 ${item.note}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+    sec.innerHTML = `<div class="category-title">${spaceData.icon} ${spaceName}</div><div class="checklist-items">${itemsHtml}</div>`;
+    container.appendChild(sec);
+  });
+}
+
+function toggleCheckItem(name) {
+  const item = state.checklist.find(i => i.name === name);
+  if (!item) return;
+  item.status = item.status === 'checked' ? 'unchecked' : 'checked';
+  const el = document.getElementById(`ci-${name}`);
+  const chk = document.getElementById(`chk-${name}`);
+  if (item.status === 'checked') {
+    el.classList.add('checked');
+  } else {
+    el.classList.remove('checked');
+  }
+}
+
+function toggleProcess(el, id) {
+  const note = document.getElementById('pn-' + id);
+  if (!note) return;
+  const isOpen = note.classList.contains('open');
+  note.classList.toggle('open');
+  el.textContent = (isOpen ? '📐 施工标准 ▼' : '📐 收起 ▲');
+}
+
+function checkAll() {
+  state.checklist.forEach(item => { item.status = 'checked'; });
+  renderChecklist();
+}
+
+// ============================================================
+//  STEP 4 → 输入方式切换
+// ============================================================
+function switchInputMode(mode) {
+  document.querySelectorAll('#inputModeTabs .view-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+  document.getElementById('inputModeText').style.display = mode === 'text' ? '' : 'none';
+  document.getElementById('inputModeFile').style.display = mode === 'file' ? '' : 'none';
+}
+
+// ============================================================
+//  STEP 4 → 文件上传 & PDF解析
+// ============================================================
+// 懒加载 pdf.js（仅上传PDF时才引入）
+let pdfJsLoaded = false;
+function loadPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (pdfJsLoaded || (typeof pdfjsLib !== 'undefined')) { pdfJsLoaded = true; resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      pdfJsLoaded = true; resolve();
+    };
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+async function parsePdfFile(file) {
+  await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(s => s.str).join(' ') + '\n';
+  }
+  return text.trim();
+}
+
+async function parseImageFile(file, statusEl, fileName) {
+  if (!window.Tesseract) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Tesseract CDN加载失败'));
+      document.head.appendChild(s);
+    });
+  }
+  const result = await Tesseract.recognize(file, 'chi_sim+eng', {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        const pct = Math.round((m.progress || 0) * 100);
+        statusEl.textContent = `⏳ OCR 识别中 ${fileName}… ${pct}%`;
+      }
+    }
+  });
+  return result.data.text.trim() || null;
+}
+
+document.getElementById('fileInput').addEventListener('change', async function(e) {
+  const files = Array.from(e.target.files);
+  files.forEach(file => {
+    if (!state.uploadedFiles.find(f => f.name === file.name)) {
+      state.uploadedFiles.push({ name: file.name, file, text: null });
+    }
+  });
+  renderFileList();
+
+  const statusEl = document.getElementById('fileReadStatus');
+  const analyzeBtn = document.getElementById('analyzeFileBtn');
+  analyzeBtn.disabled = true;
+  statusEl.textContent = '⏳ 正在读取文件内容…';
+
+  for (const entry of state.uploadedFiles) {
+    if (entry.text !== null) continue; // 已读过
+    try {
+      const isImage = entry.file.type.startsWith('image/') || entry.name.match(/\\.(jpg|jpeg|png|webp)$/i);
+      if (entry.file.type === 'text/plain' || entry.name.endsWith('.txt')) {
+        entry.text = await entry.file.text();
+      } else if (entry.file.type === 'application/pdf' || entry.name.endsWith('.pdf')) {
+        statusEl.textContent = `⏳ 正在解析 PDF：${entry.name}…`;
+        entry.text = await parsePdfFile(entry.file);
+        if (!entry.text) {
+          entry.text = '__SCAN_PDF__'; // 扫描版标记
+        }
+      } else if (isImage) {
+        statusEl.textContent = `⏳ 正在 OCR 识别图片：${entry.name}…（首次加载引擎约需10秒）`;
+        entry.text = await parseImageFile(entry.file, statusEl, entry.name);
+        if (!entry.text) {
+          entry.text = '__OCR_FAILED__';
+        }
+      }
+    } catch(err) {
+      entry.text = '';
+      console.warn('文件读取失败', entry.name, err);
+    }
+  }
+
+  const allRead = state.uploadedFiles.every(f => f.text !== null);
+  const hasScan = state.uploadedFiles.some(f => f.text === '__SCAN_PDF__');
+  const hasOcrFail = state.uploadedFiles.some(f => f.text === '__OCR_FAILED__');
+  if (hasScan || hasOcrFail) {
+    const msg = hasScan
+      ? '⚠️ 检测到扫描版PDF（图片型），无法自动读取。请改用「粘贴文字」方式，将关键条目手动摘录后比对。'
+      : '⚠️ 图片OCR识别失败，可能图片模糊或文字太小。请改用「粘贴文字」方式，或换用更清晰的照片。';
+    statusEl.innerHTML = msg;
+  } else if (allRead) {
+    const totalChars = state.uploadedFiles.reduce((s, f) => s + (f.text || '').length, 0);
+    statusEl.textContent = `✅ 已读取 ${state.uploadedFiles.length} 个文件，共约 ${totalChars} 字`;
+    analyzeBtn.disabled = false;
+  }
+  renderFileList();
+  e.target.value = ''; // 允许重复选同一文件
+});
+
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  if (!list) return;
+  list.innerHTML = '';
+  state.uploadedFiles.forEach((entry, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    const statusIcon = entry.text === null ? '⏳' : entry.text === '__SCAN_PDF__' ? '⚠️' : entry.text ? '✅' : '❌';
+      chip.innerHTML = `
+      <div class="file-chip-icon">${entry.name.endsWith('.pdf') ? '📄' : entry.name.match(/\\.(jpg|jpeg|png|webp)$/i) ? '🖼️' : '📝'}</div>
+      <div class="file-chip-name">${entry.name} ${statusIcon}</div>
+      <div class="file-chip-del" onclick="removeFile(${idx})">×</div>`;
+    list.appendChild(chip);
+  });
+}
+
+function removeFile(idx) {
+  state.uploadedFiles.splice(idx, 1);
+  renderFileList();
+  // 重新检查是否还有可用文件
+  const analyzeBtn = document.getElementById('analyzeFileBtn');
+  if (analyzeBtn) {
+    const hasReady = state.uploadedFiles.some(f => f.text && f.text !== '__SCAN_PDF__');
+    analyzeBtn.disabled = !hasReady;
+  }
+}
+
+// ============================================================
+//  STEP 4 → 合同比对（文件模式）
+// ============================================================
+async function analyzeFromFile() {
+  const texts = state.uploadedFiles
+    .filter(f => f.text && f.text !== '__SCAN_PDF__')
+    .map(f => f.text);
+  if (!texts.length) { showToast('暂无可识别的文件内容，请改用粘贴文字方式'); return; }
+  const combined = texts.join('\n\n');
+  runAnalyze(combined);
+}
+
+// ============================================================
+//  STEP 4 → 合同比对
+// ============================================================
+async function analyzeContract() {
+  const text = document.getElementById('contractText').value.trim();
+  if (!text) { showToast('请先粘贴合同文字内容'); return; }
+  runAnalyze(text);
+}
+
+async function runAnalyze(text) {
+  showOverlay('正在智能比对中…');
+
+  await new Promise(r => setTimeout(r, 800)); // 模拟处理感
+
+  const found = [];
+  const missing = [];
+
+  state.checklist.forEach(item => {
+    const keywords = KEYWORD_MAP[item.name];
+    let matched = false;
+    if (keywords) {
+      matched = keywords.some(kw => text.includes(kw));
+    } else {
+      // fallback：用名称前几个字
+      const shortName = item.name.replace(/（.*?）/g, '').substring(0, 4);
+      matched = text.includes(shortName);
+    }
+    item.status = matched ? 'found' : 'missing';
+    if (matched) found.push(item);
+    else missing.push(item);
+  });
+
+  hideOverlay();
+  renderChecklist(); // 更新清单状态
+  if (state.checklistView === 'space') renderSpaceChecklist();
+  renderReport(found, missing);
+}
+
+function renderReport(found, missing) {
+  const highMissing = missing.filter(i => i.risk === 'high');
+  const medMissing = missing.filter(i => i.risk === 'medium');
+  const lowMissing = missing.filter(i => i.risk === 'low');
+
+  const reportArea = document.getElementById('reportArea');
+  reportArea.innerHTML = `
+    <div class="report-card" id="reportCard">
+      <div class="report-header">
+        <div class="report-logo">📊</div>
+        <div class="report-title-box">
+          <div class="report-title">合同审查报告</div>
+          <div class="report-subtitle">${state.projectName} · ${state.styleType} · ${state.renovType}</div>
+        </div>
+      </div>
+
+      <div class="report-stats">
+        <div class="stat-item">
+          <div class="stat-num green">${found.length}</div>
+          <div class="stat-label">✅ 已识别项</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num red">${missing.length}</div>
+          <div class="stat-label">🔴 可能缺失</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num orange">${highMissing.length}</div>
+          <div class="stat-label">⚠️ 高风险缺失</div>
+        </div>
+      </div>
+
+      ${highMissing.length ? `
+      <div class="report-section">
+        <div class="report-section-title" style="color:#FF2442">🔴 高风险缺失（强烈建议补充）</div>
+        ${highMissing.map(item => `
+          <div class="report-item">
+            <div class="report-item-icon">❗</div>
+            <div class="report-item-body">
+              <div class="report-item-name">${item.name}</div>
+              ${item.note ? `<div class="report-item-note">${item.note}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      ${medMissing.length ? `
+      <div class="report-section">
+        <div class="report-section-title" style="color:#E8930A">⚠️ 中风险缺失（建议确认）</div>
+        ${medMissing.map(item => `
+          <div class="report-item">
+            <div class="report-item-icon">⚠️</div>
+            <div class="report-item-body">
+              <div class="report-item-name">${item.name}</div>
+              ${item.note ? `<div class="report-item-note">${item.note}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <div class="report-section">
+        <div class="report-section-title" style="color:#25A84A">✅ 已识别项目（${found.length}项）</div>
+        <div style="font-size:13px;color:#555;line-height:1.8">${found.map(i => i.name).join('、') || '—'}</div>
+      </div>
+
+      <div class="watermark">装修合同智能审查工具 · 仅供参考，以专业人士审查为准</div>
+    </div>
+    <div style="padding:0 0 8px">
+      <button class="btn btn-primary" onclick="exportReport()">📸 保存报告截图</button>
+    </div>`;
+
+  reportArea.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================================
+//  导出报告（canvas截图）
+// ============================================================
+async function exportReport() {
+  const reportEl = document.getElementById('reportCard');
+  if (!reportEl) { showToast('请先进行合同比对'); return; }
+  showToast('截图功能请直接截屏保存 📱');
+}
+
+// ============================================================
+//  步骤导航
+// ============================================================
+function goToStep(step) {
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById(`page${i}`).classList.toggle('active', i === step);
+    const dot = document.getElementById(`dot${i}`);
+    dot.className = 'step-dot ' + (i < step ? 'done' : i === step ? 'active' : 'pending');
+    if (i < 4) {
+      document.getElementById(`line${i}`).className = 'step-line' + (i < step ? ' done' : '');
+    }
+  }
+  window.scrollTo({ top: 0 });
+}
+
+function goToStep4() {
+  goToStep(4);
+}
+
+// ============================================================
+//  工具函数
+// ============================================================
+function showOverlay(text) {
+  document.getElementById('overlayText').textContent = text;
+  document.getElementById('overlay').classList.add('show');
+}
+function hideOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// ============================================================
+//  导出清单图片
+// ============================================================
+function exportChecklistImage() {
+  const checklist = state.checklist;
+  if (!checklist || checklist.length === 0) {
+    showToast('清单为空，无法导出');
+    return;
+  }
+
+  // ---- 布局参数 ----
+  const W = 750;
+  const PAD = 36;
+  const HEADER_H = 110;
+  const FOOTER_H = 48;
+  const ROW_H = 52;
+  const GROUP_TITLE_H = 40;
+  const LINE_GAP = 1;
+
+  // 按当前视图决定分组结构
+  let groups = [];
+  if (state.checklistView === 'space') {
+    // 按空间分组（SPACE_WORKS 是对象，用 Object.values 遍历）
+    Object.values(SPACE_WORKS).forEach(space => {
+      const items = space.items.filter(si => checklist.some(c => c.name === si.name));
+      if (items.length === 0) return;
+      const rows = items.map(si => {
+        const c = checklist.find(cc => cc.name === si.name);
+        return { name: si.name, checked: c ? c.status === 'checked' : false, must: si.type === '必做', risk: si.note ? 'warn' : 'normal' };
+      });
+      groups.push({ title: space.icon + ' ' + space.name, rows });
+    });
+  } else {
+    // 按工程类型分组（通用+风格专属）
+    COMMON_WORKS.forEach(cat => {
+      const rows = cat.items
+        .filter(item => checklist.some(c => c.name === item.name))
+        .map(item => {
+          const c = checklist.find(cc => cc.name === item.name);
+          return { name: item.name, checked: c ? c.status === 'checked' : false, must: item.must !== false, risk: item.risk };
+        });
+      if (rows.length > 0) groups.push({ title: cat.icon + ' ' + cat.category, rows });
+    });
+    // 风格专属
+    const styleItems = checklist.filter(c => c.isStyle);
+    if (styleItems.length > 0) {
+      groups.push({
+        title: '✨ ' + (state.styleType || '') + ' 风格专属',
+        rows: styleItems.map(c => ({ name: c.name, checked: c.status === 'checked', must: c.must !== false, risk: c.risk }))
+      });
+    }
+  }
+
+  // 统计已勾选
+  const checkedCount = checklist.filter(c => c.status === 'checked').length;
+  const totalCount = checklist.length;
+
+  // 计算总高度
+  let contentH = 0;
+  groups.forEach(g => {
+    contentH += GROUP_TITLE_H;
+    contentH += g.rows.length * (ROW_H + LINE_GAP);
+    contentH += 8; // group bottom padding
+  });
+  const CANVAS_H = HEADER_H + contentH + FOOTER_H + PAD * 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = CANVAS_H;
+  const ctx = canvas.getContext('2d');
+
+  // ---- 背景 ----
+  ctx.fillStyle = '#F7F7F8';
+  ctx.fillRect(0, 0, W, CANVAS_H);
+
+  // ---- 顶部 Header 卡片 ----
+  roundRect(ctx, PAD, PAD, W - PAD * 2, HEADER_H, 18);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  // 标题
+  ctx.fillStyle = '#1A1A1A';
+  ctx.font = 'bold 28px PingFang SC, Arial, sans-serif';
+  ctx.fillText('🏠 装修核查清单', PAD + 20, PAD + 44);
+
+  // 项目信息
+  ctx.font = '22px PingFang SC, Arial, sans-serif';
+  ctx.fillStyle = '#666';
+  const infoText = [state.projectName, state.area ? state.area + '㎡' : '', state.styleType].filter(Boolean).join(' · ');
+  ctx.fillText(infoText, PAD + 20, PAD + 76);
+
+  // 进度条背景
+  const PG_X = PAD + 20, PG_Y = PAD + 90, PG_W = W - PAD * 2 - 40, PG_H = 8;
+  roundRect(ctx, PG_X, PG_Y, PG_W, PG_H, 4);
+  ctx.fillStyle = '#F0F0F0';
+  ctx.fill();
+  const ratio = totalCount > 0 ? checkedCount / totalCount : 0;
+  if (ratio > 0) {
+    roundRect(ctx, PG_X, PG_Y, PG_W * ratio, PG_H, 4);
+    const grad = ctx.createLinearGradient(PG_X, 0, PG_X + PG_W, 0);
+    grad.addColorStop(0, '#FF2442');
+    grad.addColorStop(1, '#FF6B81');
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+  // 进度文字
+  ctx.font = 'bold 20px PingFang SC, Arial, sans-serif';
+  ctx.fillStyle = '#FF2442';
+  ctx.textAlign = 'right';
+  ctx.fillText(checkedCount + '/' + totalCount + ' 已确认', W - PAD - 20, PAD + 86);
+  ctx.textAlign = 'left';
+
+  // ---- 分组内容 ----
+  let y = PAD + HEADER_H + 14;
+
+  groups.forEach(group => {
+    // 分组标题
+    roundRect(ctx, PAD, y, W - PAD * 2, GROUP_TITLE_H, 12, 12, 0, 0);
+    ctx.fillStyle = '#F0F0F0';
+    ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 22px PingFang SC, Arial, sans-serif';
+    ctx.fillText(group.title, PAD + 18, y + 27);
+    y += GROUP_TITLE_H;
+
+    // 每一行
+    group.rows.forEach((row, i) => {
+      const isLast = i === group.rows.length - 1;
+      const rowBg = row.checked ? '#FAFCFF' : '#fff';
+
+      // 行背景
+      if (isLast) {
+        roundRect(ctx, PAD, y, W - PAD * 2, ROW_H, 0, 0, 12, 12);
+      } else {
+        ctx.beginPath();
+        ctx.rect(PAD, y, W - PAD * 2, ROW_H);
+      }
+      ctx.fillStyle = rowBg;
+      ctx.fill();
+
+      // 分割线
+      if (!isLast) {
+        ctx.strokeStyle = '#F5F5F5';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(PAD + 16, y + ROW_H);
+        ctx.lineTo(W - PAD - 16, y + ROW_H);
+        ctx.stroke();
+      }
+
+      // 复选框
+      const CX = PAD + 24, CY = y + ROW_H / 2;
+      if (row.checked) {
+        ctx.fillStyle = '#FF2442';
+        roundRect(ctx, CX - 10, CY - 10, 20, 20, 5);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(CX - 5, CY);
+        ctx.lineTo(CX - 1, CY + 5);
+        ctx.lineTo(CX + 6, CY - 5);
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = '#CCC';
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, CX - 10, CY - 10, 20, 20, 5);
+        ctx.stroke();
+      }
+
+      // 项目名称
+      ctx.font = (row.checked ? '500' : 'bold') + ' 22px PingFang SC, Arial, sans-serif';
+      ctx.fillStyle = row.checked ? '#999' : '#1A1A1A';
+      if (row.checked) {
+        // 删除线
+        const tw = ctx.measureText(row.name).width;
+        ctx.fillText(row.name, CX + 18, CY + 8);
+        ctx.strokeStyle = '#999';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(CX + 18, CY + 2);
+        ctx.lineTo(CX + 18 + tw, CY + 2);
+        ctx.stroke();
+      } else {
+        ctx.fillText(row.name, CX + 18, CY + 8);
+      }
+
+      // 必做/按需标签
+      const tagText = row.must ? '必做' : '按需';
+      const tagColor = row.must ? '#25A84A' : '#5B8DEF';
+      const tagBg = row.must ? '#E8F8EE' : '#F0F5FF';
+      ctx.font = '18px PingFang SC, Arial, sans-serif';
+      const tagW = ctx.measureText(tagText).width + 16;
+      roundRect(ctx, W - PAD - 20 - tagW, CY - 12, tagW, 24, 8);
+      ctx.fillStyle = tagBg;
+      ctx.fill();
+      ctx.fillStyle = tagColor;
+      ctx.textAlign = 'center';
+      ctx.fillText(tagText, W - PAD - 20 - tagW / 2, CY + 7);
+      ctx.textAlign = 'left';
+
+      y += ROW_H + LINE_GAP;
+    });
+
+    y += 8; // group bottom gap
+  });
+
+  // ---- Footer ----
+  ctx.fillStyle = '#CCC';
+  ctx.font = '18px PingFang SC, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('由「装修合同智能审查」工具生成 · ' + new Date().toLocaleDateString('zh-CN'), W / 2, CANVAS_H - 18);
+  ctx.textAlign = 'left';
+
+  // ---- 导出 ----
+  const link = document.createElement('a');
+  const projectLabel = state.projectName ? state.projectName.slice(0, 10) : '装修';
+  link.download = projectLabel + '_核查清单.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('📸 图片已保存');
+}
+
+// 辅助：圆角矩形路径
+function roundRect(ctx, x, y, w, h, tl=0, tr=0, br=0, bl=0) {
+  if (typeof tl === 'number' && tr === 0 && br === 0 && bl === 0) {
+    tr = br = bl = tl;
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + tl, y);
+  ctx.lineTo(x + w - tr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
+  ctx.lineTo(x + w, y + h - br);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+  ctx.lineTo(x + bl, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - bl);
+  ctx.lineTo(x, y + tl);
+  ctx.quadraticCurveTo(x, y, x + tl, y);
+  ctx.closePath();
+}
+</script>
+</body>
+</html>
