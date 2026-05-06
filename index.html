@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>装修合同智能审查</title>
+  <title>装修合同智能审查（免费版）</title>
   <style>
     /* ===== 重置 ===== */
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -370,277 +370,35 @@
 //  全局状态
 // ============================================================
 // ============================================================
-//  授权配置
-//  ⚠️ 发布前务必填入你的 Worker 访问地址
+//  应用初始化（无授权版本，直接启动）
 // ============================================================
+function initApp() {
+  // 初始化UI
+  showPage('step1');
+  // 绑定事件
+  document.getElementById('nextBtn1')?.addEventListener('click', goToStep2);
+  document.getElementById('nextBtn2')?.addEventListener('click', goToStep3);
+  document.getElementById('nextBtn3')?.addEventListener('click', goToStep4);
+  document.getElementById('prevBtn2')?.addEventListener('click', () => showPage('step1'));
+  document.getElementById('prevBtn3')?.addEventListener('click', () => showPage('step2'));
+  document.getElementById('prevBtn4')?.addEventListener('click', () => showPage('step3'));
+  document.getElementById('resetBtn')?.addEventListener('click', resetAll);
+  document.getElementById('exportImgBtn')?.addEventListener('click', exportChecklistAsImg);
+  document.getElementById('exportPdfBtn')?.addEventListener('click', exportReportAsPdf);
+  document.getElementById('uploadInput')?.addEventListener('change', handleFileUpload);
+  document.getElementById('uploadZone')?.addEventListener('click', () => document.getElementById('uploadInput').click());
 
-// 授权后端地址（优先使用腾讯云，国内访问更稳定）
-// 腾讯云 API 网关地址（部署后填入，格式如 https://service-xxx-xxx.gz.apigw.tencentcs.com/release）
-const API_URL = 'https://wangmingzhi-d2g371n9l06d22d85-1331208559.ap-shanghai.app.tcloudbase.com';
-// Cloudflare Worker 备用地址（海外用户/开发测试用）
-const CF_WORKER_URL = 'https://decoration-contract-license.osmallseason.workers.dev';
-// 自动选择：优先腾讯云，未配置则回退 Cloudflare
-const WORKER_URL = API_URL || CF_WORKER_URL;
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ============================================================
-//  授权状态（内部使用）
-// ============================================================
-const _auth = {
-  isAuthorized: false,
-  deviceId: null,
-  licenseCode: null,
-};
-
-// 生成设备指纹（基于浏览器特征，不依赖 localStorage）
-async function _getDeviceFingerprint() {
-  const components = [
-    navigator.userAgent || '',
-    navigator.language || '',
-    screen.width + 'x' + screen.height,
-    screen.colorDepth,
-    new Date().getTimezoneOffset(),
-    navigator.hardwareConcurrency || '',
-    navigator.deviceMemory || '',
-  ];
-  const raw = components.join('|||');
-  const encoder = new TextEncoder();
-  const data = encoder.encode(raw);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0')).join('')
-    .substring(0, 16).toUpperCase();
-}
-
-// ── Cloudflare Worker API ────────────────────────────────────────────────────
-
-// 验证授权码（静默验证，不绑定设备）
-async function verifyLicense(code) {
-  const res = await fetch(`${WORKER_URL}/verify?code=${encodeURIComponent(code)}&deviceId=${_auth.deviceId}`);
-  if (!res.ok) throw new Error(`验证请求失败 ${res.status}`);
-  let data = await res.json();
-  if (data.body && typeof data.body === 'string') { try { data = JSON.parse(data.body); } catch {} }
-  return data;
-}
-
-// 激活授权码（绑定设备）
-async function activateLicense(code, deviceId) {
-  const res = await fetch(`${WORKER_URL}/activate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, deviceId })
-  });
-  if (!res.ok) throw new Error(`激活请求失败 ${res.status}`);
-  let data = await res.json();
-  if (data.body && typeof data.body === 'string') { try { data = JSON.parse(data.body); } catch {} }
-  return data;
-}
-
-// ── 授权验证（云端版）──────────────────────────────────────────────────────────
-async function _checkAuth() {
-  const stored = localStorage.getItem('wb_license_v2');
-  if (!stored) return false;
-  try {
-    const { code } = JSON.parse(stored);
-    if (!code) return false;
-    // 云端验证：通过 Worker API 确认此码仍然有效
-    const result = await verifyLicense(code);
-    if (!result.valid) return false;
-    _auth.isAuthorized = true;
-    _auth.licenseCode = code;
-    return true;
-  } catch (e) {
-    console.warn('授权验证失败（网络问题）', e);
-    return false;
-  }
-}
-
-// 显示授权弹窗
-function _showAuthModal() {
-  let modal = document.getElementById('_authModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = '_authModal';
-    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(6px);';
-    modal.innerHTML = `
-      <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:40px 36px;width:90%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.7);">
-        <div style="text-align:center;margin-bottom:28px;">
-          <div style="font-size:52px;margin-bottom:14px;">🔐</div>
-          <h2 id="_authTitle" style="font-size:20px;color:#fff;font-weight:600;margin-bottom:6px;">请输入授权码</h2>
-          <p id="_authSubtitle" style="font-size:13px;color:#555570;">授权码由工具创建者提供，请勿随意输入</p>
-        </div>
-        <div style="margin-bottom:16px;">
-          <input id="_authCodeInput" type="text" placeholder="WBXXXX-XXXX-XXXX" maxlength="18" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false"
-            style="width:100%;padding:14px 16px;background:#0f0f1a;border:1px solid #2a2a4a;border-radius:10px;
-              color:#fff;font-size:20px;font-family:'Courier New',monospace;font-weight:700;letter-spacing:2px;
-              letter-spacing:3px;text-align:center;outline:none;box-sizing:border-box;" />
-          <p id="_authError" style="color:#ff6b6b;font-size:13px;margin-top:8px;text-align:center;min-height:20px;"></p>
-        </div>
-        <button id="_authSubmitBtn" onclick="_submitAuth()"
-          style="width:100%;padding:14px;background:linear-gradient(135deg,#6c63ff,#9b5de5);
-            border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;">
-          验证授权码
-        </button>
-        <p style="text-align:center;font-size:12px;color:#333345;margin-top:16px;line-height:1.6;">
-          无授权码？请私信工具创建者获取<br>仅限授权用户使用
-        </p>
-      </div>
-    `;
-    document.body.appendChild(modal);
-
-    // 监听输入
-    const inp = document.getElementById('_authCodeInput');
-    inp.addEventListener('input', () => {
-      // 提取原始纯字母数字（最多14位），去掉所有非字母数字字符
-      let raw = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      // 如果粘贴的内容已带WB前缀，先去掉再重新格式化，避免重复
-      if (raw.startsWith('WB')) raw = raw.slice(2);
-      // 限制最大12位（WB后面10位，每4位一横杠，共16位）
-      raw = raw.substring(0, 12);
-      // 自动格式化为 WBXXXX-XXXX-XXXX（16位含横杠）
-      if (raw.length > 0) {
-        let formatted = 'WB' + raw.slice(0,4) + '-' + raw.slice(4,8) + '-' + raw.slice(8);
-        inp.value = formatted.trimEnd().replace(/-$/, ''); // 去掉末尾可能多余的横杠
-      } else {
-        inp.value = '';
-      }
+  // 初始化上传区拖放
+  const uploadZone = document.getElementById('uploadZone');
+  if (uploadZone) {
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.borderColor = '#FF2442'; });
+    uploadZone.addEventListener('dragleave', e => { e.preventDefault(); uploadZone.style.borderColor = '#DDD'; });
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadZone.style.borderColor = '#DDD';
+      if (e.dataTransfer.files.length) handleFileUpload({ target: { files: e.dataTransfer.files } });
     });
-    inp.addEventListener('paste', () => {
-      setTimeout(() => {
-        // 粘贴时也走格式化逻辑，避免截断
-        let raw = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (raw.startsWith('WB')) raw = raw.slice(2);
-        raw = raw.substring(0, 12);
-        if (raw.length > 0) {
-          let formatted = 'WB' + raw.slice(0,4) + '-' + raw.slice(4,8) + '-' + raw.slice(8);
-          inp.value = formatted.trimEnd().replace(/-$/, '');
-        } else {
-          inp.value = '';
-        }
-      }, 0);
-    });
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') _submitAuth(); });
   }
-  modal.style.display = 'flex';
-  document.getElementById('_authCodeInput').value = '';
-  document.getElementById('_authError').textContent = '';
-}
-
-async function _submitAuth() {
-  const code = (document.getElementById('_authCodeInput').value || '').trim().toUpperCase().replace(/-/g, '');
-  const errorEl = document.getElementById('_authError');
-  if (!code) { errorEl.textContent = '请输入授权码'; return; }
-  if (!code.startsWith('WB') || code.length !== 14) {
-    errorEl.textContent = '授权码格式错误，请检查输入'; return;
-  }
-  errorEl.textContent = '⏳ 验证中…';
-
-  try {
-    // 先验证授权码是否有效（不绑定设备）
-    const verifyResult = await verifyLicense(code);
-    if (!verifyResult.valid) {
-      if (verifyResult.reason === 'deactivated') {
-        errorEl.textContent = '❌ 此授权码已被禁用';
-      } else {
-        errorEl.textContent = '❌ 授权码无效，请联系创建者获取';
-      }
-      return;
-    }
-
-    // 如果码已绑定本设备，直接通过
-    if (verifyResult.device === _auth.deviceId) {
-      _auth.isAuthorized = true;
-      _auth.licenseCode = code;
-      localStorage.setItem('wb_license_v2', JSON.stringify({ code }));
-      document.getElementById('_authModal').style.display = 'none';
-      _renderAuthBadge();
-      return;
-    }
-
-    // 未绑定设备 → 激活（绑定到本设备）
-    const activateResult = await activateLicense(code, _auth.deviceId);
-    if (!activateResult.success) {
-      errorEl.textContent = activateResult.message || '❌ 激活失败';
-      return;
-    }
-
-    localStorage.setItem('wb_license_v2', JSON.stringify({ code }));
-    _auth.isAuthorized = true;
-    _auth.licenseCode = code;
-    document.getElementById('_authModal').style.display = 'none';
-    _renderAuthBadge();
-
-  } catch (e) {
-    errorEl.textContent = '⚠️ 网络错误，请检查网络后重试';
-    console.error(e);
-  }
-}
-
-// ============================================================
-//  应用初始化
-// ============================================================
-async function initApp() {
-  // 1. 生成设备指纹
-  _auth.deviceId = await _getDeviceFingerprint();
-  // 2. 检查授权
-  const ok = await _checkAuth();
-  if (ok) {
-    // 已授权，直接启动
-    initUI();
-  } else {
-    // 未授权，显示弹窗
-    _showAuthModal();
-    // 也启动 UI（但工具功能受限）
-    initUI();
-  }
-}
-
-// 工具主 UI 初始化（原有逻辑，移到函数里供授权后调用）
-function initUI() {
-  // 渲染授权徽章
-  _renderAuthBadge();
-  // 显示/隐藏授权弹窗
-  const modal = document.getElementById('_authModal');
-  if (modal) modal.style.display = _auth.isAuthorized ? 'none' : 'flex';
-}
-
-// ============================================================
-//  退出登录
-// ============================================================
-function _doLogout() {
-  if (!confirm('确定退出登录？退出后可重新输入其他授权码。')) return;
-  localStorage.removeItem('wb_license_v2');
-  _auth.isAuthorized = false;
-  _auth.licenseCode = null;
-  _showAuthModal();
-}
-
-// ============================================================
-//  辅助：工具栏显示授权状态 & 重置按钮
-// ============================================================
-function _renderAuthBadge() {
-  // 在顶部标题栏右侧显示授权状态
-  const bar = document.querySelector('.top-bar');
-  if (!bar) return;
-  const existing = document.getElementById('_authBadge');
-  if (existing) existing.remove();
-
-  const badge = document.createElement('div');
-  badge.id = '_authBadge';
-  badge.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;';
-
-  if (!_auth.isAuthorized) {
-    badge.innerHTML = `<span style="color:#ff6b6b;">🔒 未授权</span>`;
-  } else if (_auth.licenseCode === 'DEV-MODE') {
-    badge.innerHTML = `<span style="color:#ffd60a;">⚠️ 开发模式</span>`;
-  } else {
-    badge.innerHTML = `
-      <span style="color:#5fd090;">✅ 已授权</span>
-      <button id="_logoutBtn" style="background:none;border:none;color:#ff6b6b;font-size:11px;cursor:pointer;padding:2px 6px;border-radius:4px;font-weight:600;margin-left:4px;" onclick="_doLogout()">退出</button>
-    `;
-  }
-  bar.appendChild(badge);
 }
 
 const state = {
